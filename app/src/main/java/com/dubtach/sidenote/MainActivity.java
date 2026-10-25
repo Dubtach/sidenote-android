@@ -254,8 +254,9 @@ public class MainActivity extends Activity {
     }
 
     private void requestGoogleToken(String requestId) {
-        if (AppConfig.GOOGLE_WEB_CLIENT_ID.startsWith("YOUR_") || !AppConfig.GOOGLE_WEB_CLIENT_ID.endsWith(".apps.googleusercontent.com")) {
-            sendGoogleResult(requestId, null, "Google sign-in needs a Google OAuth Web client ID. See ANDROID_SETUP.md.");
+        if (!AppConfig.isGoogleSignInConfigured()) {
+            sendGoogleResult(requestId, null,
+                    "Google sign-in is not configured in this APK. Add the SIDENOTE_GOOGLE_WEB_CLIENT_ID GitHub Actions secret using the Web application OAuth client ID, register com.dubtach.sidenote in Firebase, add this APK's signing SHA-1, then rebuild.");
             return;
         }
         GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
@@ -296,7 +297,9 @@ public class MainActivity extends Activity {
                     @Override
                     public void onError(GetCredentialException error) {
                         String message = error.getMessage();
-                        if (message == null || message.trim().isEmpty()) message = "Google sign-in was cancelled or unavailable.";
+                        if (message == null || message.trim().isEmpty()) {
+                            message = "Google sign-in was cancelled or unavailable. Check Google Play services, the Web OAuth client ID, and the Android app SHA-1 in Firebase.";
+                        }
                         sendGoogleResult(requestId, null, message);
                     }
                 });
@@ -339,7 +342,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean isGoogleSignInConfigured() {
-            return !AppConfig.GOOGLE_WEB_CLIENT_ID.startsWith("YOUR_") && AppConfig.GOOGLE_WEB_CLIENT_ID.endsWith(".apps.googleusercontent.com");
+            return AppConfig.isGoogleSignInConfigured();
         }
 
         @JavascriptInterface

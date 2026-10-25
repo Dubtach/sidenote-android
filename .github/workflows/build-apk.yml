@@ -37,12 +37,30 @@ jobs:
           # This project uses a checksum-verifying bootstrap script instead of a standard wrapper JAR.
           validate-wrappers: false
 
+      - name: Check Google OAuth configuration
+        shell: bash
+        env:
+          SIDENOTE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.SIDENOTE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          if [ -z "$SIDENOTE_GOOGLE_WEB_CLIENT_ID" ]; then
+            echo "::warning::Google sign-in is not configured. Add repository secret SIDENOTE_GOOGLE_WEB_CLIENT_ID containing your Firebase project's OAuth client ID of type Web application. Email/password sign-in can still work."
+          else
+            echo "Google Web OAuth client ID secret is present."
+          fi
+
       - name: Build APK
+        env:
+          SIDENOTE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.SIDENOTE_GOOGLE_WEB_CLIENT_ID }}
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Check APK was created
+      - name: Check APK and print Google sign-in fingerprint
         shell: bash
-        run: test -s app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          echo "SHA fingerprints for this APK (register SHA-1 in Firebase Android app settings):"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee /tmp/sidenote-apk-certs.txt
+          grep -E 'certificate SHA-1 digest|certificate SHA-256 digest' /tmp/sidenote-apk-certs.txt || true
+          echo "Note: GitHub-hosted runners create a fresh debug signing key for each run unless you configure stable signing."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7

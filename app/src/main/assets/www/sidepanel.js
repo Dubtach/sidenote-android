@@ -2081,7 +2081,13 @@
     els.firebaseAutoSyncToggle.checked = Boolean(firebaseSyncPrefs.autoSync);
     els.firebaseAutoSyncToggle.disabled = !signedIn;
     els.firebaseSyncNowButton.disabled = !signedIn;
-    els.firebaseGoogleButton.disabled = !chrome.identity?.getAuthToken;
+    const nativeGoogleReady = !window.SIDENOTE_ANDROID || Boolean(window.SideNoteAndroid?.isGoogleSignInConfigured?.());
+    // Keep Android's button clickable when configuration is missing so the native bridge
+    // can explain the exact setup required rather than showing an inert control.
+    els.firebaseGoogleButton.disabled = !window.SIDENOTE_ANDROID && !chrome.identity?.getAuthToken;
+    els.firebaseGoogleButton.title = nativeGoogleReady
+      ? "Continue with your Google account"
+      : "Needs the Web OAuth client ID in the GitHub Actions secret SIDENOTE_GOOGLE_WEB_CLIENT_ID";
     els.firebaseFootnote.textContent = signedIn
       ? "Your notes are saved locally first, then synced to your private account. Signing out keeps this device's notes."
       : "Local-first: sign in to merge local notes with your cloud account. Passwords are never stored by SideNote.";

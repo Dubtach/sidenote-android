@@ -4,13 +4,15 @@ This project includes a GitHub Actions workflow that builds the APK on GitHub's 
 
 ## First: configure Google sign-in (optional)
 
-The Android app compiles with the Google sign-in placeholder, but Google sign-in will show a setup message until you configure a Google OAuth client of type **Web application**.
+The Android app compiles without an OAuth client ID, but Google sign-in cannot work until you configure a Google OAuth client of type **Web application**.
 
-1. Open `app/src/main/java/com/dubtach/sidenote/AppConfig.java`.
-2. Replace `YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com` with the Web application client ID from the same Google Cloud/Firebase project.
-3. Save the file.
+1. In Google Cloud Console / Firebase Authentication, copy the Web application OAuth client ID for the `notebeedubtach` project. Do not use the Chrome Extension client ID.
+2. In your GitHub repository, open Settings → Secrets and variables → Actions → New repository secret.
+3. Name the secret `SIDENOTE_GOOGLE_WEB_CLIENT_ID` and paste the Web application client ID as its value.
+4. Push the project or manually run the workflow again. Gradle reads this secret from the workflow environment and embeds it in the build; it is not hardcoded into `AppConfig.java`.
+5. After a successful build, copy the SHA-1 printed in the Actions log into the Android app settings in Firebase (`com.dubtach.sidenote`).
 
-Email/password sign-in and the debug build do not require this client ID. For Google sign-in to work on Android, register the Android app in Firebase (`com.dubtach.sidenote`) and add the debug signing certificate SHA-1/SHA-256 fingerprints after the first build. See `ANDROID_SETUP.md` for details.
+Email/password sign-in does not depend on that OAuth client ID. If email login fails, SideNote now shows a specific message for disabled providers, rejected API keys, and network failures. See `ANDROID_SETUP.md` for troubleshooting and the SHA-1/signing caveat.
 
 ## Upload the project to GitHub
 

@@ -20,17 +20,32 @@ This project currently calls Firebase Auth/Firestore REST APIs using the Web app
 
 ## 2. Configure Google Credential Manager
 
-The Chrome Extension OAuth client ID is **not** the Android Credential Manager's server client ID. Create or locate an OAuth client of type **Web application** in Google Cloud Console / Firebase Authentication's Google provider configuration.
+**Google sign-in is intentionally not active until a Web application OAuth client ID is supplied.** The Chrome Extension OAuth client ID is not the Android Credential Manager's server client ID.
 
 1. In Firebase Console → Authentication → Sign-in method, confirm Email/Password and Google are enabled.
-2. Open Google provider configuration and find the **Web client ID**. If it is not suitable for this project, create an OAuth 2.0 client ID of type Web application in the same Google Cloud project.
-3. Open `app/src/main/java/com/dubtach/sidenote/AppConfig.java`.
-4. Replace `YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com` with that Web application client ID.
-5. Rebuild the APK.
+2. Open the Google provider settings and copy the **Web client ID** (OAuth client type `Web application`) from the same Google Cloud/Firebase project. Do not use the Chrome Extension client ID or the Android client ID.
+3. In your GitHub repository, open Settings → Secrets and variables → Actions → New repository secret.
+4. Set the secret name to exactly `SIDENOTE_GOOGLE_WEB_CLIENT_ID` and paste the Web application client ID as the secret value.
+5. Push the project changes or manually run Actions → Build SideNote Android APK. The workflow passes the secret to Gradle; it is not stored directly in source files. If the secret is absent, the workflow still builds, but Android Google sign-in displays a setup error.
+6. Register the Android app with package `com.dubtach.sidenote`, then add the SHA-1 fingerprint printed in the successful GitHub Actions build log to Firebase Console → Project settings → Your apps → Android app → SHA certificate fingerprints.
 
-Credential Manager returns a Google ID token for the configured Web client; the app exchanges it with Firebase Authentication to obtain the normal SideNote Firebase session. The existing Chrome Extension client ID from the browser extension should remain in the extension's `manifest.json`, not be copied here unless it is genuinely a Web application client.
+Credential Manager returns a Google ID token for the configured Web client; the app exchanges it with Firebase Authentication to obtain the normal SideNote Firebase session. The existing Chrome Extension client ID from the browser extension should remain in the extension's `manifest.json` and is not a substitute for this Web application client ID.
 
-## 3. Verify Firestore security rules
+**Signing note:** GitHub-hosted runners generate a fresh debug signing key on each run by default. The printed SHA-1 matches that build's APK. If you want to install future APK builds as updates without uninstalling, configure a persistent signing keystore in GitHub Actions and keep the same signing key for all builds.
+
+## 3. If email/password login fails
+
+Email/password login does not require the Google OAuth client ID or Android SHA fingerprint. If it fails:
+
+1. In Firebase Console → Authentication → Sign-in method, make sure Email/Password is enabled.
+2. Confirm `app/src/main/assets/www/firebase-config.js` still contains the Web app configuration for project `notebeedubtach`.
+3. Read the error shown in the SideNote account panel. Errors are mapped to actionable messages: wrong password/account, disabled provider, invalid/restricted API key, or network failure.
+4. If the message mentions `API_KEY_HTTP_REFERRER_BLOCKED`, open Google Cloud Console → APIs & Services → Credentials and review restrictions on the API key used by this Firebase Web app. A browser-only HTTP referrer allowlist may reject calls from the Android WebView origin. Adjust the key restrictions carefully instead of making the key unrestricted across unrelated APIs.
+5. If it says `Failed to fetch` or could not reach Firebase, test the device's network and retry on another network. A VPN, DNS filter, or network firewall may block `identitytoolkit.googleapis.com`.
+
+Please keep the full error message; it identifies whether the problem is app setup or the entered credentials.
+
+## 4. Verify Firestore security rules
 
 The app expects the same rules as the Chrome extension, restricting each signed-in user to `users/{uid}/...`:
 
@@ -47,7 +62,7 @@ service cloud.firestore {
 
 Publish these rules only if they match the schema for your existing SideNote extension. Do not use public/test-mode rules.
 
-## 4. Test the app
+## 5. Test the app
 
 - Create or sign in with an email/password account.
 - Open the profile panel and check sync status; create a note and confirm it appears in Firestore.

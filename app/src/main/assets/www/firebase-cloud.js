@@ -13,9 +13,15 @@
     if (/EMAIL_NOT_FOUND|INVALID_PASSWORD|INVALID_LOGIN_CREDENTIALS|INVALID_CREDENTIAL/.test(raw)) return "Email or password is incorrect.";
     if (/WEAK_PASSWORD/.test(raw)) return "Choose a stronger password (at least 6 characters).";
     if (/INVALID_EMAIL/.test(raw)) return "Enter a valid email address.";
-    if (/OPERATION_NOT_ALLOWED/.test(raw)) return "Email/password sign-in is disabled in Firebase Authentication.";
+    if (/OPERATION_NOT_ALLOWED|ADMIN_ONLY_OPERATION/.test(raw)) return "Email/password sign-in is disabled in Firebase Authentication. Open Firebase Console → Authentication → Sign-in method and enable Email/Password.";
     if (/TOO_MANY_ATTEMPTS_TRY_LATER/.test(raw)) return "Too many attempts. Wait a little and try again.";
     if (/ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL/.test(raw)) return "This email already uses another sign-in method. Sign in with that method first.";
+    if (/CONFIGURATION_NOT_FOUND/.test(raw)) return "Firebase Authentication is not configured for this project. Enable Email/Password under Firebase Console → Authentication → Sign-in method.";
+    if (/API_KEY_HTTP_REFERRER_BLOCKED/.test(raw)) return "Firebase rejected this app's API key because its referrer is blocked. In Google Cloud Console, review the API key's application restrictions for the Android app.";
+    if (/API_KEY_SERVICE_BLOCKED/.test(raw)) return "The Firebase API key is blocked from using an API required for login. Review the API restrictions for the key used in firebase-config.js.";
+    if (/API_KEY_INVALID|INVALID_API_KEY|API key not valid/.test(raw)) return "The Firebase Web API key was rejected. Confirm that firebase-config.js uses the Web app config from the notebeedubtach project and that the key is enabled.";
+    if (/NETWORK_REQUEST_FAILED|Failed to fetch|NetworkError|Load failed/i.test(raw)) return "SideNote couldn't reach Firebase Authentication. Check your internet connection, then check whether the Firebase API key has browser-referrer restrictions that block the Android WebView.";
+    if (/USER_DISABLED/.test(raw)) return "This Firebase account has been disabled. Contact the project administrator.";
     return (message || code || "Firebase authentication failed.").replace(/^Firebase:\s*/i, "");
   }
 
@@ -30,9 +36,15 @@
   }
 
   async function authPost(endpoint, payload) {
-    const response = await fetch(`${authBase}/${endpoint}?key=${encodeURIComponent(config.apiKey)}`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-    });
+    let response;
+    try {
+      response = await fetch(`${authBase}/${endpoint}?key=${encodeURIComponent(config.apiKey)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+      });
+    } catch (error) {
+      const detail = String(error?.message || "");
+      throw new Error(authErrorMessage("NETWORK_REQUEST_FAILED", detail));
+    }
     return readJsonResponse(response, endpoint);
   }
 
