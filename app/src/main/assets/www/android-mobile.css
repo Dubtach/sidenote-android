@@ -1,0 +1,85 @@
+/* Full-screen touch layout for the native Android app. */
+:root.sidenote-android { --notes-area-height: 320px; }
+.sidenote-android, .sidenote-android body { width: 100%; height: 100%; min-height: 100%; overflow: hidden; }
+.sidenote-android body { min-width: 0; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+.sidenote-android .app-shell { height: 100dvh; min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+.sidenote-android #keyboardSettingsGroup { display: none !important; }
+.sidenote-android .settings-backdrop { padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+.sidenote-android .settings-panel { width: 100%; max-height: 100%; border-radius: 22px; }
+.sidenote-android .topbar { height: 62px; flex-basis: 62px; padding: 9px 12px; gap: 9px; }
+.sidenote-android .account-avatar { width: 36px; height: 36px; border-radius: 13px; font-size: 14px; }
+.sidenote-android .account-trigger { gap: 9px; padding: 3px 8px 3px 3px; border-radius: 14px; }
+.sidenote-android .account-trigger-copy strong { max-width: 145px; font-size: 13px; }
+.sidenote-android .account-trigger-copy small { max-width: 145px; font-size: 10.5px; }
+.sidenote-android .toolbar-actions { gap: 5px; }
+.sidenote-android .toolbar-button { width: 39px; height: 39px; border-radius: 12px; }
+.sidenote-android .toolbar-button svg { width: 20px; height: 20px; }
+.sidenote-android .new-note-button { width: 42px; height: 42px; border-radius: 14px; }
+.sidenote-android .new-note-button svg { width: 21px; height: 21px; }
+.sidenote-android .search-box { inset: 8px 10px; border-radius: 13px; }
+.sidenote-android .search-box input { font-size: 15px; }
+.sidenote-android .notes-section { padding: 12px 13px 0; min-height: 125px; }
+.sidenote-android .section-heading { padding: 0 3px 10px; }
+.sidenote-android .section-label { font-size: 11px; letter-spacing: 1.2px; }
+.sidenote-android .notes-count { min-width: 20px; height: 19px; font-size: 11px; border-radius: 7px; }
+.sidenote-android .sort-select { width: 138px; max-width: 48vw; height: 31px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; }
+.sidenote-android .notes-list { gap: 9px; padding: 0 1px 9px; }
+.sidenote-android .note-card { min-height: 74px; padding: 11px 11px 12px; border-radius: 15px; }
+.sidenote-android .note-card-title { font-size: 13px; line-height: 1.35; }
+.sidenote-android .note-card-preview { font-size: 11.5px; line-height: 1.45; margin-top: 5px; -webkit-line-clamp: 2; }
+.sidenote-android .note-card-menu-button { width: 27px; height: 27px; border-radius: 9px; }
+.sidenote-android .list-editor-splitter { flex-basis: 13px; height: 13px; margin: 0 12px; }
+.sidenote-android .list-editor-splitter::before { width: 44px; height: 4px; }
+.sidenote-android .editor-wrap { margin: 0 12px 10px; border-radius: 19px; }
+.sidenote-android .editor { padding: 14px 16px 0; }
+.sidenote-android .editor-topline { min-height: 39px; }
+.sidenote-android .note-title { font-size: 23px; line-height: 1.25; letter-spacing: -.45px; }
+.sidenote-android .note-body, .sidenote-android .note-body-mirror-content { font-size: 15.5px; line-height: 1.75; }
+.sidenote-android .note-body { padding: 10px 0 18px; }
+.sidenote-android .note-body-mirror-content { padding: 10px 0 18px; }
+.sidenote-android .editor-footer { padding: 7px 12px max(10px, env(safe-area-inset-bottom)); }
+.sidenote-android .text-action { min-height: 37px; padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+.sidenote-android .text-action svg { width: 17px; height: 17px; }
+.sidenote-android .writing-toolbar-toggle, .sidenote-android .editor-quiet-actions .pin-button, .sidenote-android .editor-info-button { width: 37px; height: 37px; }
+.sidenote-android .format-button { min-width: 37px; height: 37px; padding: 0 8px; border-radius: 10px; }
+.sidenote-android .app-footer { height: 42px; flex-basis: 42px; padding: 0 15px; font-size: 11px; }
+.sidenote-android .save-dot { width: 8px; height: 8px; }
+.sidenote-android .shortcut-footer { min-height: 36px; padding: 6px 9px; font-size: 11px; }
+.sidenote-android .account-popover { top: calc(62px + env(safe-area-inset-top)); left: 12px; right: 12px; width: auto; max-width: none; max-height: calc(100% - 90px - env(safe-area-inset-bottom)); border-radius: 20px; }
+.sidenote-android .account-popover-header { padding: 16px; }
+.sidenote-android .account-popover-header h2 { font-size: 19px; }
+.sidenote-android .account-popover-content { padding: 0 16px 18px; }
+.sidenote-android .firebase-input { height: 46px; font-size: 15px; border-radius: 12px; }
+.sidenote-android .settings-inline-button { min-height: 42px; height: 42px; font-size: 13px; border-radius: 11px; }
+.sidenote-android .firebase-google-button { min-height: 46px; }
+.sidenote-android .profile-avatar-choice { width: 38px; height: 38px; border-radius: 12px; font-size: 18px; }
+.sidenote-android .settings-header { padding-top: max(18px, env(safe-area-inset-top)); }
+.sidenote-android .settings-content { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+.sidenote-android .settings-field strong, .sidenote-android .settings-check strong { font-size: 14px; }
+.sidenote-android .settings-field small, .sidenote-android .settings-check small { font-size: 12px; }
+.sidenote-android .settings-select { height: 38px; font-size: 12px; }
+.sidenote-android button, .sidenote-android select, .sidenote-android input { touch-action: manipulation; }
+.sidenote-android .note-action-menu { width: 210px; border-radius: 15px; }
+.sidenote-android .note-action-menu button { min-height: 44px; font-size: 14px; }
+.sidenote-android .bulk-actions { flex-wrap: wrap; gap: 6px; }
+.sidenote-android .bulk-action-button, .sidenote-android .bulk-action-link, .sidenote-android .bulk-action-cancel { min-height: 34px; padding: 6px 9px; font-size: 12px; }
+.sidenote-android .toast { bottom: calc(54px + env(safe-area-inset-bottom)); font-size: 13px; padding: 12px 16px; border-radius: 13px; }
+@media (max-width: 360px) {
+  :root.sidenote-android { --notes-area-height: 290px; }
+  .sidenote-android .account-trigger-copy small { max-width: 90px; }
+  .sidenote-android .toolbar-button { width: 35px; height: 37px; }
+  .sidenote-android .new-note-button { width: 39px; height: 39px; }
+  .sidenote-android .notes-list { gap: 7px; }
+  .sidenote-android .note-card { padding: 9px; min-height: 69px; }
+  .sidenote-android .note-card-title { font-size: 12px; }
+  .sidenote-android .note-card-preview { font-size: 10.5px; }
+  .sidenote-android .section-label { font-size: 10px; letter-spacing: .8px; }
+}
+@media (max-height: 700px) {
+  :root.sidenote-android { --notes-area-height: 245px; }
+  .sidenote-android .topbar { height: 54px; flex-basis: 54px; }
+  .sidenote-android .account-popover { top: calc(54px + env(safe-area-inset-top)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidenote-android *, .sidenote-android *::before, .sidenote-android *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

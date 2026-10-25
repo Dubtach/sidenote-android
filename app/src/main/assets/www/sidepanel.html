@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SideNote</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <link rel="stylesheet" href="android-mobile.css">
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <header class="topbar" id="topbar">
+      <div class="topbar-heading">
+        <button class="account-trigger" id="accountButton" type="button" title="Sign in to back up and sync notes" aria-label="Sign in to back up and sync notes" aria-haspopup="dialog" aria-controls="accountPopover" aria-expanded="false">
+          <span class="account-avatar" id="accountAvatar" data-avatar="initial" aria-hidden="true">S</span>
+          <span class="account-trigger-copy"><strong id="accountButtonLabel">Sign in</strong><small id="accountButtonSubline">Back up &amp; sync</small></span>
+          <span class="account-sync-indicator" id="accountSyncIndicator" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="toolbar-actions">
+        <button class="icon-button toolbar-button" id="searchToggle" type="button" title="Search notes" aria-label="Search notes" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
+        </button>
+        <button class="icon-button toolbar-button" id="settingsButton" type="button" title="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z"></path></svg>
+        </button>
+        <button class="new-note-button" id="newNoteButton" type="button" title="Create a new note" aria-label="Create a new note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+      </div>
+      <div class="search-box" id="searchBox" role="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.2 4.2"></path></svg>
+        <input id="searchInput" type="search" aria-label="Search your notes" placeholder="Find a note…" autocomplete="off" spellcheck="false">
+        <button class="search-close" id="searchClose" type="button" aria-label="Close search" title="Close search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="account-popover hidden" id="accountPopover" role="dialog" aria-modal="false" aria-label="SideNote account and sync">
+      <header class="account-popover-header">
+        <div>
+          <div class="account-popover-kicker">YOUR WORKSPACE</div>
+          <h2>Account &amp; sync</h2>
+        </div>
+        <button class="icon-button account-popover-close" id="accountPopoverClose" type="button" aria-label="Close account panel" title="Close account panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+        </button>
+      </header>
+      <div class="account-popover-content">
+          <section class="settings-group firebase-account-group account-popover-section" aria-labelledby="firebaseAccountHeading">
+            <h3 id="firebaseAccountHeading">Profile &amp; sync</h3>
+            <div class="cloud-status-row">
+              <span class="cloud-status-dot" id="firebaseStatusDot" aria-hidden="true"></span>
+              <div class="cloud-status-copy">
+                <strong id="firebaseStatusTitle">Not signed in</strong>
+                <small id="firebaseStatusDetail">Sign in to sync your notes across devices. Your notes stay on this device until you connect.</small>
+              </div>
+            </div>
+            <div id="firebaseSignedOut">
+              <label class="firebase-input-label" for="firebaseEmail">Email</label>
+              <input class="firebase-input" id="firebaseEmail" type="email" autocomplete="username" placeholder="you@example.com" spellcheck="false">
+              <label class="firebase-input-label" for="firebasePassword">Password</label>
+              <input class="firebase-input" id="firebasePassword" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+              <div class="firebase-auth-actions">
+                <button class="settings-inline-button firebase-primary-action" id="firebaseSignInButton" type="button">Sign in</button>
+                <button class="settings-inline-button" id="firebaseCreateButton" type="button">Create account</button>
+                <button class="firebase-text-button" id="firebaseForgotPasswordButton" type="button">Forgot password?</button>
+              </div>
+              <button class="settings-link-button firebase-google-button" id="firebaseGoogleButton" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 12.23c0-.72-.06-1.42-.18-2.09H12v3.96h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" fill="#4285F4" stroke="none"/><path d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.52c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.75-5.59-4.1H3.06v2.6A10 10 0 0 0 12 22Z" fill="#34A853" stroke="none"/><path d="M6.41 13.98A6 6 0 0 1 6.1 12c0-.69.12-1.36.31-1.98v-2.6H3.06A10 10 0 0 0 2 12c0 1.61.39 3.13 1.06 4.58l3.35-2.6Z" fill="#FBBC05" stroke="none"/><path d="M12 5.92c1.47 0 2.8.51 3.84 1.52l2.88-2.88C16.96 2.96 14.7 2 12 2a10 10 0 0 0-8.94 5.42l3.35 2.6c.79-2.35 2.99-4.1 5.59-4.1Z" fill="#EA4335" stroke="none"/></svg>
+                Continue with Google
+              </button>
+            </div>
+            <div id="firebaseSignedIn" class="hidden">
+              <label class="settings-check cloud-auto-sync" for="firebaseAutoSyncToggle"><span><strong>Automatically sync changes</strong><small>Sync while SideNote is open and whenever you edit notes.</small></span><input id="firebaseAutoSyncToggle" type="checkbox" checked></label>
+              <div class="firebase-auth-actions">
+                <button class="settings-inline-button firebase-primary-action" id="firebaseSyncNowButton" type="button">Sync now</button>
+                <button class="settings-inline-button" id="firebaseSignOutButton" type="button">Sign out</button>
+              </div>
+            </div>
+            <p class="settings-footnote firebase-footnote" id="firebaseFootnote">Local-first: signing in safely merges local and cloud notes. Your notes stay on this device if you sign out.</p>
+            <div class="profile-avatar-picker" aria-label="Choose your profile icon">
+              <div class="profile-avatar-picker-label">Profile icon <small>Choose one</small></div>
+              <div class="profile-avatar-choices" id="profileAvatarChoices" role="group" aria-label="Profile icon choices"></div>
+            </div>
+          </section>
+      </div>
+    </section>
+
+    <section class="notes-section" id="notesSection" aria-label="Notes list">
+      <div class="section-heading">
+        <div class="section-label">YOUR NOTES <span class="notes-count" id="notesCount">0</span></div>
+        <div class="section-heading-meta">
+          <div class="list-hint" id="listHint"></div>
+          <select class="sort-select" id="sortSelect" aria-label="Sort notes" title="Sort notes">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title-asc">Title A–Z</option>
+            <option value="title-desc">Title Z–A</option>
+            <option value="words-desc">Most words</option>
+            <option value="words-asc">Fewest words</option>
+          </select>
+        </div>
+      </div>
+      <div class="bulk-actions hidden" id="bulkActionsBar" aria-live="polite">
+        <strong class="bulk-selected-count" id="bulkSelectedCount">0 selected</strong>
+        <button type="button" class="bulk-action-link" data-bulk-action="select-all">All</button>
+        <button type="button" class="bulk-action-button" data-bulk-action="duplicate" title="Duplicate selected notes">Duplicate</button>
+        <button type="button" class="bulk-action-button" data-bulk-action="merge" title="Merge selected notes into one">Merge</button>
+        <button type="button" class="bulk-action-button bulk-pin-action" data-bulk-action="pin" title="Pin selected notes">Pin</button>
+        <button type="button" class="bulk-action-button danger" data-bulk-action="delete" title="Delete selected notes">Delete</button>
+        <button type="button" class="bulk-action-cancel" data-bulk-action="cancel" aria-label="Exit selection mode" title="Done">×</button>
+      </div>
+      <div class="notes-list" id="notesList" role="list" aria-label="Notes"></div>
+      <div class="no-search-results hidden" id="noSearchResults">No notes found. Try another search.</div>
+    </section>
+
+    <div class="note-action-menu hidden" id="noteActionMenu" role="menu" aria-label="Note actions">
+      <button type="button" role="menuitem" data-note-action="open">Open note</button>
+      <button type="button" role="menuitem" data-note-action="select">Select for bulk actions</button>
+      <div class="note-action-menu-divider"></div>
+      <button type="button" role="menuitem" data-note-action="pin">Pin note</button>
+      <button type="button" role="menuitem" data-note-action="duplicate">Duplicate</button>
+      <button type="button" role="menuitem" data-note-action="delete" class="danger">Delete</button>
+    </div>
+
+    <div class="list-editor-splitter" id="listEditorSplitter" role="separator" aria-label="Resize notes list and editor" aria-orientation="horizontal" aria-valuemin="86" aria-valuemax="420" aria-valuenow="168" tabindex="0" title="Drag to resize notes and editor"></div>
+
+    <main class="editor-wrap" id="editorWrap">
+      <section class="empty-state" id="emptyState">
+        <div class="empty-art" aria-hidden="true">
+          <svg viewBox="0 0 88 88" role="presentation">
+            <rect x="22" y="13" width="44" height="57" rx="10" transform="rotate(7 22 13)" fill="#ffc7a5" opacity=".72"></rect>
+            <path d="M27 14h25l10 10v43a7 7 0 0 1-7 7H27a7 7 0 0 1-7-7V21a7 7 0 0 1 7-7Z" fill="#fffdf5" stroke="#d8d4f8" stroke-width="1.4"></path>
+            <path d="M52 14v10h10" fill="#e8e4ff" stroke="#d8d4f8" stroke-width="1.4" stroke-linejoin="round"></path>
+            <path d="M29 35h20M29 43h27M29 51h17" stroke="#b9b3df" stroke-width="3" stroke-linecap="round"></path>
+            <circle cx="57" cy="65" r="5" fill="#9ddc9b"></circle>
+            <path d="m13 34 2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5ZM72 29l1.5 3.5L77 34l-3.5 1.5L72 39l-1.5-3.5L67 34l3.5-1.5L72 29Z" fill="#f0b84d"></path>
+          </svg>
+        </div>
+        <h2>A note to self.</h2>
+        <p>Catch a thought before it disappears.</p>
+        <button class="empty-cta" id="emptyNewNoteButton" type="button"><span class="cta-plus">+</span> Make a note</button>
+      </section>
+
+      <section class="editor hidden" id="noteEditor" aria-label="Note editor">
+        <div class="editor-topline">
+          <input class="note-title" id="noteTitle" type="text" placeholder="Untitled note" maxlength="180" aria-label="Note title" spellcheck="true">
+          <div class="editor-top-actions">
+            <button class="icon-button delete-button" id="deleteButton" type="button" title="Delete note" aria-label="Delete note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+            </button>
+            <button class="icon-button close-editor-button" id="closeEditorButton" type="button" title="Close editor" aria-label="Close editor">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+            </button>
+          </div>
+        </div>
+        <div class="title-rule"><span></span></div>
+        <div class="note-body-wrap" id="noteBodyWrap">
+          <div class="note-body-mirror" id="noteBodyMirror" aria-hidden="true"><div class="note-body-mirror-content" id="noteBodyMirrorContent"></div></div>
+          <div class="note-checklist-layer" id="noteChecklistLayer" aria-label="Checklist controls"></div>
+          <textarea class="note-body" id="noteBody" placeholder="Start with a thought…
+
+No pressure to make it perfect." aria-label="Note content" spellcheck="true"></textarea>
+        </div>
+        <div class="editor-footer">
+          <div class="writing-toolbar" id="writingToolbar" role="toolbar" aria-label="Writing helpers">
+          <button class="format-button" type="button" data-list-style="unordered" title="Bulleted list — type - or * and a space; Enter continues" aria-label="Bulleted list">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="5" cy="18" r="1.1" fill="currentColor" stroke="none"></circle><path d="M9 6h10M9 12h10M9 18h10"></path></svg>
+          </button>
+          <button class="format-button ordered-format" type="button" data-list-style="ordered" title="Numbered list — type 1. and a space; Enter counts up" aria-label="Numbered list"><span>1.</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h10M9 12h10M9 18h10"></path></svg></button>
+          <button class="format-button alpha-format" type="button" data-list-style="alpha" title="Alphabetic list — type a. or a); Enter continues b, c, and onward" aria-label="Alphabetic list"><span>a.</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h10M9 12h10M9 18h10"></path></svg></button>
+          <button class="format-button" type="button" data-list-style="checklist" title="Checklist — Enter adds another unchecked item" aria-label="Checklist">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="5" height="5" rx="1"></rect><path d="m4.7 6.5 1.2 1.2 2-2.5M11.5 6.5H21M3.5 15h5v5h-5zM11.5 17.5H21"></path></svg>
+          </button>
+          <span class="writing-toolbar-divider" aria-hidden="true"></span>
+          <button class="format-button" type="button" data-indent="outdent" title="Decrease indent — Shift+Tab" aria-label="Decrease indent">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5h11M10 12h11M10 19h11M3 8l4 4-4 4"></path></svg>
+          </button>
+          <button class="format-button" type="button" data-indent="indent" title="Increase indent — Tab" aria-label="Increase indent">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5h11M10 12h11M10 19h11M7 8l-4 4 4 4"></path></svg>
+          </button>
+          <span class="writing-toolbar-spacer"></span>
+          <button class="format-button help-format" id="writingHelpButton" type="button" title="Editor tips and keyboard shortcuts" aria-label="Editor tips">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.35 2.35 0 1 1 3.9 1.75c-1 .85-1.6 1.15-1.6 2.75M12 17.1h.01"></path></svg>
+          </button>
+        </div>
+          <div class="editor-footer-bottom">
+          <div class="editor-actions">
+            <button class="text-action" id="insertPageButton" type="button" title="Link this note to the current webpage" aria-label="Link note to current page">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"></path></svg>
+              <span>Link page</span>
+            </button>
+            <button class="text-action" id="copyButton" type="button" title="Copy note text" aria-label="Copy note">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg>
+              <span>Copy</span>
+            </button>
+            <button class="icon-button writing-toolbar-toggle" id="writingToolbarToggle" type="button" title="Show writing tools" aria-label="Show writing tools" aria-expanded="false" aria-controls="writingToolbar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"></path><path d="m17 14 3 3-3 3"></path></svg>
+            </button>
+          </div>
+          <div class="editor-quiet-actions">
+            <button class="icon-button editor-info-button" id="editorInfoButton" type="button" title="Hover for note details" aria-label="Note details: hover to view last edited time, word count, and character count">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 7.5h.01"></path></svg>
+            </button>
+            <button class="icon-button pin-button" id="pinButton" type="button" title="Pin note" aria-label="Pin note" aria-pressed="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 4 4 4-3 1-3 4v4l-2 2-2-6-5-5 2-2 4 1 4-3Z"></path><path d="m9 15-4 4"></path></svg>
+            </button>
+          </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer" id="appFooter">
+      <span class="save-state" id="saveIndicator" title="Notes save automatically"><span class="save-dot"></span><span id="saveStatus">Saved on this device</span></span>
+      <button class="shortcut-footer" id="settingsFooter" type="button" title="Open settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3h-.2a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z"></path></svg><span>Settings</span></button>
+    </footer>
+    <div class="settings-backdrop hidden" id="settingsBackdrop">
+      <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" tabindex="-1">
+        <header class="settings-header">
+          <div>
+            <div class="settings-kicker">PERSONALIZE</div>
+            <h2 id="settingsTitle">Settings</h2>
+          </div>
+          <button class="icon-button settings-close" id="settingsClose" type="button" aria-label="Close settings" title="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+          </button>
+        </header>
+        <div class="settings-content">
+          <section class="settings-group" id="keyboardSettingsGroup" aria-labelledby="shortcutSettingsHeading">
+            <h3 id="shortcutSettingsHeading">Keyboard</h3>
+            <div class="settings-field shortcut-setting-row">
+              <span><strong>Panel shortcut</strong><small>Open SideNote from anywhere in Chrome.</small></span>
+              <button class="settings-inline-button" id="changeShortcutButton" type="button" title="Change shortcut in Chrome">
+                Change
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"></path></svg>
+              </button>
+            </div>
+          </section>
+          <!-- Account and sync now live in the top-bar profile popover. -->
+          <section class="settings-group cloud-settings-group hidden" aria-labelledby="cloudSettingsHeading">
+            <h3 id="cloudSettingsHeading">Google backup &amp; sync</h3>
+            <div class="cloud-status-row">
+              <span class="cloud-status-dot" id="cloudStatusDot" aria-hidden="true"></span>
+              <div class="cloud-status-copy">
+                <strong id="cloudStatusTitle">Not connected</strong>
+                <small id="cloudStatusDetail">Connect Google Drive to back up and sync your notes.</small>
+              </div>
+            </div>
+            <div class="cloud-action-row">
+              <button class="settings-inline-button" id="connectGoogleButton" type="button">Connect Google <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"></path></svg></button>
+              <button class="settings-inline-button hidden" id="backupNowButton" type="button">Back up now</button>
+              <button class="settings-inline-button hidden" id="restoreBackupButton" type="button">Restore</button>
+              <button class="settings-inline-button cloud-disconnect-button hidden" id="disconnectGoogleButton" type="button" title="Disconnect this extension from Google Drive">Disconnect</button>
+            </div>
+            <label class="settings-check cloud-auto-sync" for="autoSyncToggle"><span><strong>Automatically sync changes</strong><small>Sync when SideNote is open and when you edit notes.</small></span><input id="autoSyncToggle" type="checkbox" disabled></label>
+            <p class="settings-footnote cloud-footnote">SideNote uses Google Drive's private app-data area, not access to all your Drive files. One-time OAuth setup is required; see README.md.</p>
+          </section>
+          <section class="settings-group" aria-labelledby="appearanceSettingsHeading">
+            <h3 id="appearanceSettingsHeading">Appearance</h3>
+            <label class="settings-field" for="themeSelect"><span><strong>Color theme</strong><small>Change the look of your workspace.</small></span>
+              <select id="themeSelect" class="settings-select">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="lavender">Lavender</option>
+                <option value="mint">Mint</option>
+                <option value="peach">Peach</option>
+              </select>
+            </label>
+            <label class="settings-field" for="editorFontSizeSelect"><span><strong>Editor text size</strong><small>Adjust reading and writing size.</small></span>
+              <select id="editorFontSizeSelect" class="settings-select">
+                <option value="small">Small</option>
+                <option value="standard">Standard</option>
+                <option value="large">Large</option>
+              </select>
+            </label>
+            <label class="settings-check" for="compactCardsToggle"><span><strong>Compact note cards</strong><small>Show shorter previews to fit more notes.</small></span><input id="compactCardsToggle" type="checkbox"></label>
+          </section>
+          <section class="settings-group" aria-labelledby="editorSettingsHeading">
+            <h3 id="editorSettingsHeading">Editor</h3>
+            <label class="settings-check" for="autoHideToolbarToggle"><span><strong>Auto-hide writing tools</strong><small>Collapse the toolbar when you start typing.</small></span><input id="autoHideToolbarToggle" type="checkbox" checked></label>
+            <label class="settings-check" for="focusNewNoteToggle"><span><strong>Focus new note title</strong><small>Start typing in the title when creating a note.</small></span><input id="focusNewNoteToggle" type="checkbox" checked></label>
+          </section>
+          <section class="settings-group" aria-labelledby="behaviorSettingsHeading">
+            <h3 id="behaviorSettingsHeading">Behavior</h3>
+            <label class="settings-check" for="autoOpenLinkedToggle"><span><strong>Auto-open linked notes</strong><small>Open a note when you revisit its linked webpage.</small></span><input id="autoOpenLinkedToggle" type="checkbox" checked></label>
+            <label class="settings-check" for="confirmDeleteToggle"><span><strong>Confirm before deleting</strong><small>Ask before permanently deleting a note.</small></span><input id="confirmDeleteToggle" type="checkbox" checked></label>
+            <label class="settings-check" for="confirmUnlinkToggle"><span><strong>Confirm before unlinking</strong><small>Prevent accidental removal of a page link.</small></span><input id="confirmUnlinkToggle" type="checkbox"></label>
+          </section>
+          <p class="settings-footnote">Your preferences are saved on this device.</p>
+        </div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="firebase-config.js"></script>
+  <script src="android-compat.js"></script>
+  <script src="firebase-cloud.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

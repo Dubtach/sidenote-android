@@ -1,0 +1,15 @@
+BUILD SIDENOTE APK WITHOUT ANDROID STUDIO
+
+Recommended: GitHub Actions. Follow BUILD_WITH_GITHUB_ACTIONS.md.
+1. Create a GitHub repository.
+2. Push this entire project folder, including the hidden .github/workflows/build-apk.yml file.
+3. Open the repository's Actions tab and wait for "Build SideNote Android APK" to finish.
+4. Download the SideNote-Android-debug-APK artifact and extract app-debug.apk.
+
+Optional local Windows command-line build (requires JDK 17 and Android SDK Platform 36):
+  gradlew.bat assembleDebug
+
+APK path:
+  app\build\outputs\apk\debug\app-debug.apk
+
+Google sign-in requires configuration described in ANDROID_SETUP.md and BUILD_WITH_GITHUB_ACTIONS.md.
