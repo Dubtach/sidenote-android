@@ -1,6 +1,6 @@
 # SideNote for Android
 
-SideNote for Android is a full-screen Android app using the SideNote v2.6.2 interface, note model, smart editor, checklist renderer, page-link metadata, account UI, and Firebase REST sync. The 1.0.1 project update adds explicit authentication error diagnostics and GitHub Actions secret injection for the Google Web OAuth client ID. The Android host provides the platform-specific storage shim, Google Credential Manager login, clipboard integration, native confirmation dialogs, and Android Share-sheet handling.
+SideNote for Android is a full-screen Android app using the SideNote v2.6.2 interface, note model, smart editor, checklist renderer, page-link metadata, account UI, and Firebase REST sync. The 1.0.1 project update adds explicit authentication error diagnostics and GitHub Actions secret injection for the Google Web OAuth client ID. Version 1.1.0 adds a phone-first list/editor flow, keyboard-aware viewport sizing, larger touch targets, and mobile-optimized account/settings panels. The Android host provides the platform-specific storage shim, Google Credential Manager login, clipboard integration, native confirmation dialogs, and Android Share-sheet handling.
 
 ## What works in this project
 
@@ -30,3 +30,8 @@ The GitHub Actions workflow generates a **debug APK for personal testing**, not 
 The app uses the same Firebase project configuration as the extension. Sign in using the same account as SideNote Chrome to download cloud-synced notes. Notes that existed only in the Chrome extension's local storage must first be synced from the extension to Firebase; Chrome's local storage and Android app storage are separate sandboxes.
 
 The app uses Firebase Authentication and Firestore REST calls from a local HTTPS WebView origin. It does not embed an admin key or service-account credential.
+
+
+### v1.1.1 mobile usability polish
+
+The phone UI uses full-screen list/editor navigation, keyboard-safe viewport sizing, larger writing controls, and a single-column note list on very narrow devices. See `MOBILE-UX-v1.1.1.md`.

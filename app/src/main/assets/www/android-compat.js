@@ -101,8 +101,24 @@
     catch (error) { pendingGoogle.delete(requestId); reject(error); }
   });
 
+  const syncAndroidViewport = () => {
+    const viewportHeight = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+    if (viewportHeight > 0) document.documentElement.style.setProperty("--sidenote-app-height", `${viewportHeight}px`);
+    const active = document.activeElement;
+    const editable = Boolean(active && active.matches && active.matches("input:not([type=checkbox]), textarea, [contenteditable=true]"));
+    document.documentElement.classList.toggle("sidenote-keyboard-open", editable);
+  };
+  window.addEventListener("resize", syncAndroidViewport, { passive: true });
+  window.visualViewport?.addEventListener("resize", syncAndroidViewport, { passive: true });
+  window.visualViewport?.addEventListener("scroll", syncAndroidViewport, { passive: true });
+  document.addEventListener("focusin", () => window.setTimeout(syncAndroidViewport, 60));
+  document.addEventListener("focusout", () => window.setTimeout(syncAndroidViewport, 180));
+
   document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("sidenote-android-body");
+    document.getElementById("appShell")?.classList.add("mobile-list-active");
+    document.documentElement.classList.remove("mobile-list-active");
+    syncAndroidViewport();
     window.SideNoteAndroid?.setWebContentReady?.();
   }, { once: true });
 })();

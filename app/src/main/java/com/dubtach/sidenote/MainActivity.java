@@ -316,7 +316,7 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (webView == null) { super.onBackPressed(); return; }
         webView.evaluateJavascript(
-                "(() => { const open = document.querySelector('#settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open'); if (open) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; } return 'exit'; })()",
+                "(() => { const overlay = document.querySelector('#settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open, #noteActionMenu:not(.hidden)'); if (overlay) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; } const back = document.getElementById('mobileBackButton'); if (document.querySelector('#appShell.mobile-editor-active') && back) { back.click(); return 'handled'; } return 'exit'; })()",
                 value -> { if ("\"exit\"".equals(value)) finish(); });
     }
 

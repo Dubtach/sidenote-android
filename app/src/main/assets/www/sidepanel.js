@@ -93,6 +93,9 @@
     bulkSelectedCount: $("bulkSelectedCount"),
     noteActionMenu: $("noteActionMenu"),
     noSearchResults: $("noSearchResults"),
+    mobileEmptyState: $("mobileEmptyState"),
+    mobileEmptyNewButton: $("mobileEmptyNewNoteButton"),
+    mobileBackButton: $("mobileBackButton"),
     listHint: $("listHint"),
     emptyState: $("emptyState"),
     noteEditor: $("noteEditor"),
@@ -209,6 +212,13 @@
       button.title = avatar.id === "initial" ? `Your initials (${initials})` : avatar.label;
       button.setAttribute("aria-pressed", String(avatar.id === selectedId));
     }
+  }
+
+  function setMobileView(view) {
+    if (!window.SIDENOTE_ANDROID || !els.appShell) return;
+    const showEditor = view === "editor";
+    els.appShell.classList.toggle("mobile-editor-active", showEditor);
+    els.appShell.classList.toggle("mobile-list-active", !showEditor);
   }
 
   function currentNote() {
@@ -361,6 +371,9 @@
     const hasQueryAndNoResults = Boolean(query) && filtered.length === 0;
     els.noSearchResults.classList.toggle("hidden", !hasQueryAndNoResults);
     els.notesList.classList.toggle("hidden", hasQueryAndNoResults);
+    if (els.mobileEmptyState) {
+      els.mobileEmptyState.classList.toggle("hidden", notes.length > 0 || Boolean(query));
+    }
     // Keep selection limited to existing notes; filters only hide, not deselect.
     for (const id of [...selectedNoteIds]) {
       if (!notes.some((note) => note.id === id)) selectedNoteIds.delete(id);
@@ -619,6 +632,7 @@
     const bodyScrollTop = bodyWasFocused ? els.body.scrollTop : 0;
     const note = currentNote();
     const hasNote = Boolean(note);
+    if (window.SIDENOTE_ANDROID) setMobileView(hasNote ? "editor" : "list");
     els.appShell.classList.toggle("editor-closed", !hasNote);
     els.emptyState.classList.toggle("hidden", hasNote);
     els.noteEditor.classList.toggle("hidden", !hasNote);
@@ -2732,12 +2746,18 @@
     }
   });
   els.pin.addEventListener("click", togglePin);
-  els.closeEditor.addEventListener("click", () => {
+  function returnToNotesList() {
     flushSave();
     activeId = null;
     renderList();
     renderEditor();
-  });
+    if (window.SIDENOTE_ANDROID && document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+  }
+  els.closeEditor.addEventListener("click", returnToNotesList);
+  if (els.mobileBackButton) els.mobileBackButton.addEventListener("click", returnToNotesList);
+  if (els.mobileEmptyNewButton) els.mobileEmptyNewButton.addEventListener("click", createNote);
   els.delete.addEventListener("click", deleteCurrentNote);
   els.copy.addEventListener("click", copyCurrentNote);
   els.insertPage.addEventListener("click", () => {
