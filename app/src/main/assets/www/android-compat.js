@@ -81,24 +81,52 @@
     clearAllCachedAuthTokens: async () => {}
   };
 
-  const pendingGoogle = new Map();
-  window.__sideNoteNativeGoogleAuthResult = (requestId, token, error) => {
-    const handlers = pendingGoogle.get(requestId);
+  const pendingNativeFirebase = new Map();
+  window.__sideNoteNativeFirebaseResult = (requestId, payloadJson, error) => {
+    const handlers = pendingNativeFirebase.get(requestId);
     if (!handlers) return;
-    pendingGoogle.delete(requestId);
-    if (error) handlers.reject(new Error(String(error)));
-    else if (token) handlers.resolve(String(token));
-    else handlers.reject(new Error("Google sign-in did not return an ID token."));
-  };
-  window.__sideNoteGetNativeGoogleIdToken = () => new Promise((resolve, reject) => {
-    if (!window.SideNoteAndroid?.requestGoogleSignIn) {
-      reject(new Error("Android Google sign-in is unavailable."));
+    pendingNativeFirebase.delete(requestId);
+    window.clearTimeout(handlers.timeout);
+    if (error) {
+      handlers.reject(new Error(String(error)));
       return;
     }
-    const requestId = `sn-google-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    pendingGoogle.set(requestId, { resolve, reject });
-    try { window.SideNoteAndroid.requestGoogleSignIn(requestId); }
-    catch (error) { pendingGoogle.delete(requestId); reject(error); }
+    try {
+      handlers.resolve(typeof payloadJson === "string" ? JSON.parse(payloadJson) : payloadJson);
+    } catch (parseError) {
+      handlers.reject(new Error("SideNote received an invalid response from Android authentication."));
+    }
+  };
+
+  function callNativeFirebase(method, ...args) {
+    return new Promise((resolve, reject) => {
+      if (!window.SideNoteAndroid || typeof window.SideNoteAndroid[method] !== "function") {
+        reject(new Error("Native Firebase authentication is unavailable. Update SideNote Android."));
+        return;
+      }
+      const requestId = `sn-firebase-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      const timeout = window.setTimeout(() => {
+        pendingNativeFirebase.delete(requestId);
+        reject(new Error("Firebase took too long to respond. Check your connection and try again."));
+      }, 30000);
+      pendingNativeFirebase.set(requestId, { resolve, reject, timeout });
+      try { window.SideNoteAndroid[method](requestId, ...args); }
+      catch (error) {
+        window.clearTimeout(timeout);
+        pendingNativeFirebase.delete(requestId);
+        reject(error);
+      }
+    });
+  }
+
+  window.SideNoteAndroidAuth = Object.freeze({
+    signInEmail: (email, password) => callNativeFirebase("firebaseSignInEmail", email, password),
+    createAccount: (email, password) => callNativeFirebase("firebaseCreateAccount", email, password),
+    signInGoogle: () => callNativeFirebase("firebaseGoogleSignIn"),
+    sendPasswordReset: (email) => callNativeFirebase("firebaseSendPasswordReset", email),
+    getCurrentSession: () => callNativeFirebase("firebaseGetCurrentSession"),
+    getIdToken: () => callNativeFirebase("firebaseGetIdToken"),
+    signOut: () => callNativeFirebase("firebaseSignOut")
   });
 
   const syncAndroidViewport = () => {

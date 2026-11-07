@@ -37,16 +37,58 @@ jobs:
           # This project uses a checksum-verifying bootstrap script instead of a standard wrapper JAR.
           validate-wrappers: false
 
-      - name: Check Google OAuth configuration
+      - name: Configure native Firebase Android app
         shell: bash
         env:
+          SIDENOTE_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.SIDENOTE_GOOGLE_SERVICES_JSON_BASE64 }}
           SIDENOTE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.SIDENOTE_GOOGLE_WEB_CLIENT_ID }}
         run: |
-          if [ -z "$SIDENOTE_GOOGLE_WEB_CLIENT_ID" ]; then
-            echo "::warning::Google sign-in is not configured. Add repository secret SIDENOTE_GOOGLE_WEB_CLIENT_ID containing your Firebase project's OAuth client ID of type Web application. Email/password sign-in can still work."
-          else
-            echo "Google Web OAuth client ID secret is present."
+          if [ -z "$SIDENOTE_GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "::error::Missing SIDENOTE_GOOGLE_SERVICES_JSON_BASE64. Register com.dubtach.sidenote as an Android app in Firebase, download google-services.json, base64-encode it, and save it as this GitHub Actions secret. See ANDROID_SETUP.md."
+            exit 1
           fi
+          mkdir -p app
+          echo "$SIDENOTE_GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+          python - <<'PYJSON'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('app/google-services.json').read_text())
+          android_clients = [c for c in data.get('client', []) if c.get('client_info', {}).get('android_client_info', {}).get('package_name') == 'com.dubtach.sidenote']
+          if not android_clients:
+              raise SystemExit('google-services.json does not contain Android package com.dubtach.sidenote')
+          if data.get('project_info', {}).get('project_id') != 'notebeedubtach':
+              raise SystemExit('google-services.json belongs to a different Firebase project; expected notebeedubtach')
+          selected = android_clients[0]
+          if not selected.get('client_info', {}).get('mobilesdk_app_id') or not selected.get('api_key'):
+              raise SystemExit('google-services.json is missing the Android Firebase app ID or API key. Download it again from Firebase Project settings.')
+          print('Firebase Android config validated for notebeedubtach / com.dubtach.sidenote.')
+          PYJSON
+          if [ -z "$SIDENOTE_GOOGLE_WEB_CLIENT_ID" ]; then
+            echo "::error::Missing SIDENOTE_GOOGLE_WEB_CLIENT_ID. Add the OAuth client ID with type Web application to GitHub Actions secrets; Google sign-in will not work without it. See ANDROID_SETUP.md."
+            exit 1
+          fi
+          if [[ ! "$SIDENOTE_GOOGLE_WEB_CLIENT_ID" =~ \.apps\.googleusercontent\.com$ ]]; then
+            echo "::error::SIDENOTE_GOOGLE_WEB_CLIENT_ID is not a valid Google OAuth client ID. Use the Web application client, not the Android or Chrome Extension client."
+            exit 1
+          fi
+          echo "Firebase Android config and Web OAuth client ID validated."
+
+      - name: Restore stable debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: sidenote-debug-signing-v1
+
+      - name: Ensure debug signing key exists
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=SideNote,C=BD"
+          fi
+
+      - name: Run note lifecycle and sync tests
+        run: node --test tests/side-note-features.test.cjs
 
       - name: Build APK
         env:
@@ -60,7 +102,7 @@ jobs:
           echo "SHA fingerprints for this APK (register SHA-1 in Firebase Android app settings):"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee /tmp/sidenote-apk-certs.txt
           grep -E 'certificate SHA-1 digest|certificate SHA-256 digest' /tmp/sidenote-apk-certs.txt || true
-          echo "Note: GitHub-hosted runners create a fresh debug signing key for each run unless you configure stable signing."
+          echo "The debug signing key is cached between builds to keep the APK signature stable. Register this SHA-1 in Firebase → Project settings → Android app."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7

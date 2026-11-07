@@ -94,6 +94,10 @@
         <div class="section-label">YOUR NOTES <span class="notes-count" id="notesCount">0</span></div>
         <div class="section-heading-meta">
           <div class="list-hint" id="listHint"></div>
+          <button class="trash-open-button" id="trashButton" type="button" title="Open Trash" aria-label="Open Trash, 0 items">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+            <span>Trash</span><span class="trash-count" id="trashCount">0</span>
+          </button>
           <select class="sort-select" id="sortSelect" aria-label="Sort notes" title="Sort notes">
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -131,6 +135,17 @@
       <button type="button" role="menuitem" data-note-action="duplicate">Duplicate</button>
       <button type="button" role="menuitem" data-note-action="delete" class="danger">Delete</button>
     </div>
+
+    <section class="trash-panel hidden" id="trashPanel" role="dialog" aria-modal="true" aria-labelledby="trashTitle" aria-hidden="true">
+      <header class="trash-panel-header">
+        <button class="icon-button trash-close" id="trashClose" type="button" title="Back to notes" aria-label="Back to notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7M8 12h13"></path></svg>
+        </button>
+        <div class="trash-heading-copy"><h2 id="trashTitle">Trash</h2><p>Deleted notes stay here for 30 days.</p></div>
+        <button class="trash-empty-button hidden" id="emptyTrashButton" type="button">Empty trash</button>
+      </header>
+      <div class="trash-list" id="trashList" aria-live="polite"></div>
+    </section>
 
     <div class="list-editor-splitter" id="listEditorSplitter" role="separator" aria-label="Resize notes list and editor" aria-orientation="horizontal" aria-valuemin="86" aria-valuemax="420" aria-valuenow="168" tabindex="0" title="Drag to resize notes and editor"></div>
 
@@ -175,7 +190,35 @@
 No pressure to make it perfect." aria-label="Note content" spellcheck="true"></textarea>
         </div>
         <div class="editor-footer">
+          <section class="note-style-panel hidden" id="noteStylePanel" aria-label="Note appearance">
+            <header class="note-style-panel-header"><strong>Note appearance</strong><button class="note-style-close" id="noteStyleClose" type="button" aria-label="Close appearance options">×</button></header>
+            <div class="note-style-section-label">Paper color</div>
+            <div class="note-style-colors" role="group" aria-label="Choose note background color">
+              <button type="button" data-style-tint="0" class="note-style-color tint-0" aria-label="Butter" title="Butter"></button>
+              <button type="button" data-style-tint="1" class="note-style-color tint-1" aria-label="Peach" title="Peach"></button>
+              <button type="button" data-style-tint="2" class="note-style-color tint-2" aria-label="Blush" title="Blush"></button>
+              <button type="button" data-style-tint="3" class="note-style-color tint-3" aria-label="Sky" title="Sky"></button>
+              <button type="button" data-style-tint="4" class="note-style-color tint-4" aria-label="Lavender" title="Lavender"></button>
+              <button type="button" data-style-tint="5" class="note-style-color tint-5" aria-label="Mint" title="Mint"></button>
+              <button type="button" data-style-tint="6" class="note-style-color tint-6" aria-label="Sand" title="Sand"></button>
+            </div>
+            <div class="note-style-section-label">Paper texture</div>
+            <div class="note-style-textures" role="group" aria-label="Choose note background texture">
+              <button type="button" data-style-texture="0" class="note-style-texture texture-0" aria-label="Plain" title="Plain"><span>Plain</span></button>
+              <button type="button" data-style-texture="1" class="note-style-texture texture-1" aria-label="Diagonal" title="Diagonal"><span>Diagonal</span></button>
+              <button type="button" data-style-texture="2" class="note-style-texture texture-2" aria-label="Grid" title="Grid"><span>Grid</span></button>
+              <button type="button" data-style-texture="3" class="note-style-texture texture-3" aria-label="Dots" title="Dots"><span>Dots</span></button>
+              <button type="button" data-style-texture="4" class="note-style-texture texture-4" aria-label="Lined" title="Lined"><span>Lined</span></button>
+            </div>
+          </section>
           <div class="writing-toolbar" id="writingToolbar" role="toolbar" aria-label="Writing helpers">
+          <button class="format-button undo-redo-button" id="undoButton" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M5 9h8a6 6 0 0 1 0 12h-2"></path></svg>
+          </button>
+          <button class="format-button undo-redo-button" id="redoButton" type="button" title="Redo (Ctrl+Y)" aria-label="Redo" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M19 9h-8a6 6 0 0 0 0 12h2"></path></svg>
+          </button>
+          <span class="writing-toolbar-divider" aria-hidden="true"></span>
           <button class="format-button" type="button" data-list-style="unordered" title="Bulleted list — type - or * and a space; Enter continues" aria-label="Bulleted list">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="5" cy="12" r="1.1" fill="currentColor" stroke="none"></circle><circle cx="5" cy="18" r="1.1" fill="currentColor" stroke="none"></circle><path d="M9 6h10M9 12h10M9 18h10"></path></svg>
           </button>
@@ -211,6 +254,9 @@ No pressure to make it perfect." aria-label="Note content" spellcheck="true"></t
             </button>
           </div>
           <div class="editor-quiet-actions">
+            <button class="icon-button note-style-button" id="noteStyleButton" type="button" title="Change note appearance" aria-label="Change note appearance" aria-expanded="false" aria-controls="noteStylePanel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6.5 3 3M3 21l3.5-.8L19 7.7a2.1 2.1 0 0 0-3-3L3.5 17.2 3 21Z"></path><path d="M12 21h9"></path></svg>
+            </button>
             <button class="icon-button editor-info-button" id="editorInfoButton" type="button" title="Hover for note details" aria-label="Note details: hover to view last edited time, word count, and character count">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 7.5h.01"></path></svg>
             </button>
@@ -296,7 +342,7 @@ No pressure to make it perfect." aria-label="Note content" spellcheck="true"></t
           <section class="settings-group" aria-labelledby="behaviorSettingsHeading">
             <h3 id="behaviorSettingsHeading">Behavior</h3>
             <label class="settings-check" for="autoOpenLinkedToggle"><span><strong>Auto-open linked notes</strong><small>Open a note when you revisit its linked webpage.</small></span><input id="autoOpenLinkedToggle" type="checkbox" checked></label>
-            <label class="settings-check" for="confirmDeleteToggle"><span><strong>Confirm before deleting</strong><small>Ask before permanently deleting a note.</small></span><input id="confirmDeleteToggle" type="checkbox" checked></label>
+            <label class="settings-check" for="confirmDeleteToggle"><span><strong>Confirm before moving to Trash</strong><small>Ask before moving a note to the 30-day Trash.</small></span><input id="confirmDeleteToggle" type="checkbox" checked></label>
             <label class="settings-check" for="confirmUnlinkToggle"><span><strong>Confirm before unlinking</strong><small>Prevent accidental removal of a page link.</small></span><input id="confirmUnlinkToggle" type="checkbox"></label>
           </section>
           <p class="settings-footnote">Your preferences are saved on this device.</p>
@@ -306,6 +352,7 @@ No pressure to make it perfect." aria-label="Note content" spellcheck="true"></t
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
   <script src="firebase-config.js"></script>
+  <script src="note-lifecycle.js"></script>
   <script src="android-compat.js"></script>
   <script src="firebase-cloud.js"></script>
   <script src="sidepanel.js"></script>

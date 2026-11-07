@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
 }
 
 // Set SIDENOTE_GOOGLE_WEB_CLIENT_ID in GitHub Actions secrets or pass it as a Gradle
@@ -19,8 +20,8 @@ android {
         applicationId = "com.dubtach.sidenote"
         minSdk = 24
         targetSdk = 36
-        versionCode = 103
-        versionName = "1.1.1"
+        versionCode = 107
+        versionName = "1.5.0"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$escapedGoogleWebClientId\"")
     }
 
@@ -42,6 +43,8 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
+    implementation("com.google.firebase:firebase-auth")
     implementation("androidx.core:core:1.17.0")
     implementation("androidx.webkit:webkit:1.13.0")
     implementation("androidx.credentials:credentials:1.5.0")

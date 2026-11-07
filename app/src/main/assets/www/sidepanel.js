@@ -9,6 +9,9 @@
   const FIREBASE_SYNC_PREFS_KEY = "sidenote_firebase_sync_preferences_v1";
   const FIREBASE_OWNER_KEY = "sidenote_firebase_local_owner_v1";
   const FIREBASE_SNAPSHOT_PREFIX = "sidenote_firebase_account_snapshot_v1_";
+  const NoteLifecycle = window.SideNoteLifecycle;
+  if (!NoteLifecycle) throw new Error("SideNote note lifecycle helpers are missing.");
+  const TRASH_RETENTION_MS = NoteLifecycle.RETENTION_MS;
   const DRIVE_BACKUP_NAME = "sidenote-backup.json";
   const FirebaseAPI = window.SideNoteFirebase;
   const FIREBASE = window.SIDENOTE_FIREBASE_CONFIG;
@@ -88,6 +91,17 @@
     newButton: $("newNoteButton"),
     emptyNewButton: $("emptyNewNoteButton"),
     notesCount: $("notesCount"),
+    trashButton: $("trashButton"),
+    trashCount: $("trashCount"),
+    trashPanel: $("trashPanel"),
+    trashClose: $("trashClose"),
+    trashList: $("trashList"),
+    emptyTrashButton: $("emptyTrashButton"),
+    noteStyleButton: $("noteStyleButton"),
+    noteStylePanel: $("noteStylePanel"),
+    noteStyleClose: $("noteStyleClose"),
+    undoButton: $("undoButton"),
+    redoButton: $("redoButton"),
     notesList: $("notesList"),
     bulkActionsBar: $("bulkActionsBar"),
     bulkSelectedCount: $("bulkSelectedCount"),
@@ -148,9 +162,15 @@
   let saveQueue = Promise.resolve();
   let splitterDrag = null;
   let suppressToolbarAutohide = false;
+  let trashPanelOpen = false;
+  let editorHistory = { noteId: null, undo: [], redo: [], lastSnapshot: null, lastAt: 0, lastField: "", lastInputType: "" };
+  let historyApplying = false;
 
   // Use a light random paper texture on each panel open; note tint/texture is saved per note.
   els.appShell.dataset.appTexture = String(Math.floor(Math.random() * 4));
+
+  function isNoteTrashed(note) { return NoteLifecycle.isTrashed(note); }
+  function activeNotes() { return notes.filter((note) => !isNoteTrashed(note)); }
 
   function makeId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -283,9 +303,12 @@
   function renderList() {
     sortNotes();
     const query = els.search.value.trim().toLowerCase();
-    const filtered = notes.filter((note) => `${note.title || ""}\n${note.body || ""}`.toLowerCase().includes(query));
-    els.notesCount.textContent = String(notes.length);
-    els.listHint.textContent = query ? `${filtered.length} found` : (notes.length ? "" : "A fresh start");
+    const liveNotes = activeNotes();
+    const filtered = liveNotes.filter((note) => `${note.title || ""}\n${note.body || ""}`.toLowerCase().includes(query));
+    els.notesCount.textContent = String(liveNotes.length);
+    els.trashCount.textContent = String(notes.length - liveNotes.length);
+    els.trashButton.setAttribute("aria-label", `Open Trash, ${notes.length - liveNotes.length} item${notes.length - liveNotes.length === 1 ? "" : "s"}`);
+    els.listHint.textContent = query ? `${filtered.length} found` : (liveNotes.length ? "" : "A fresh start");
     els.notesList.replaceChildren();
 
     for (const note of filtered) {
@@ -372,11 +395,11 @@
     els.noSearchResults.classList.toggle("hidden", !hasQueryAndNoResults);
     els.notesList.classList.toggle("hidden", hasQueryAndNoResults);
     if (els.mobileEmptyState) {
-      els.mobileEmptyState.classList.toggle("hidden", notes.length > 0 || Boolean(query));
+      els.mobileEmptyState.classList.toggle("hidden", liveNotes.length > 0 || Boolean(query));
     }
     // Keep selection limited to existing notes; filters only hide, not deselect.
     for (const id of [...selectedNoteIds]) {
-      if (!notes.some((note) => note.id === id)) selectedNoteIds.delete(id);
+      if (!notes.some((note) => note.id === id && !isNoteTrashed(note))) selectedNoteIds.delete(id);
     }
     updateSelectionUI();
     if (activeNoteMenuId && !filtered.some((note) => note.id === activeNoteMenuId)) closeNoteActionMenu();
@@ -403,7 +426,7 @@
     const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedNoteIds.has(id));
     const selectAll = els.bulkActionsBar.querySelector('[data-bulk-action="select-all"]');
     if (selectAll) selectAll.textContent = allVisibleSelected ? "None" : "All";
-    const selectedNotes = notes.filter((note) => selectedNoteIds.has(note.id));
+    const selectedNotes = notes.filter((note) => selectedNoteIds.has(note.id) && !isNoteTrashed(note));
     const allPinned = selectedNotes.length > 0 && selectedNotes.every((note) => note.pinned);
     const pinAction = els.bulkActionsBar.querySelector('[data-bulk-action="pin"]');
     if (pinAction) {
@@ -437,12 +460,15 @@
     longPressTimer = setTimeout(() => {
       if (!notePressState || notePressState.id !== id) return;
       notePressState.triggered = true;
+      notePressState.lastDragId = id;
       longPressTriggeredId = id;
       longPressTriggeredAt = Date.now();
+      document.body.classList.add("note-drag-selecting");
       selectedNoteIds.add(id);
       updateSelectionUI();
-      showToast("Selection mode · tap more notes");
-    }, 520);
+      if (window.SIDENOTE_ANDROID) window.SideNoteAndroid?.vibrate?.(18);
+      showToast("Selection mode · drag across notes or tap to select");
+    }, window.SIDENOTE_ANDROID ? 430 : 520);
   }
 
   function cancelNoteLongPress(event) {
@@ -450,6 +476,7 @@
     clearTimeout(longPressTimer);
     longPressTimer = null;
     if (!notePressState.triggered) notePressState = null;
+    document.body.classList.remove("note-drag-selecting");
   }
 
   function finishNoteLongPress(event) {
@@ -457,6 +484,7 @@
     clearTimeout(longPressTimer);
     longPressTimer = null;
     notePressState = null;
+    document.body.classList.remove("note-drag-selecting");
   }
 
   function openNoteActionMenu(id, anchor) {
@@ -516,22 +544,20 @@
   }
 
   async function deleteNotesByIds(ids) {
-    const existingIds = new Set(notes.filter((note) => ids.includes(note.id)).map((note) => note.id));
-    if (!existingIds.size) return;
-    if (settings.confirmDelete && !window.confirm(`Delete ${existingIds.size} selected note${existingIds.size === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const selected = notes.filter((note) => ids.includes(note.id) && !isNoteTrashed(note));
+    if (!selected.length) return;
+    if (settings.confirmDelete && !window.confirm(`Move ${selected.length} note${selected.length === 1 ? "" : "s"} to Trash? You can restore them for 30 days.`)) return;
     flushSave();
-    const deletedAt = Date.now();
-    cloudState.deletedNotes = cloudState.deletedNotes || {};
-    for (const id of existingIds) cloudState.deletedNotes[id] = deletedAt;
-    void persistCloudState();
-    notes = notes.filter((note) => !existingIds.has(note.id));
-    if (existingIds.has(activeId)) activeId = null;
+    const trashedAt = Date.now();
+    for (const note of selected) NoteLifecycle.moveToTrash(note, trashedAt);
+    if (selected.some((note) => note.id === activeId)) activeId = null;
     clearNoteSelection();
     closeNoteActionMenu();
     renderList();
     renderEditor();
+    if (trashPanelOpen) renderTrashPanel();
     await saveNow();
-    showToast(`${existingIds.size} note${existingIds.size === 1 ? "" : "s"} deleted`);
+    showToast(`${selected.length} note${selected.length === 1 ? "" : "s"} moved to Trash · kept for 30 days`);
   }
 
   async function mergeSelectedNotes() {
@@ -552,19 +578,174 @@
       linkedUrl: "", linkedTitle: "", linkDisabled: false,
       createdAt: now, updatedAt: now
     };
-    cloudState.deletedNotes = cloudState.deletedNotes || {};
-    for (const note of selected) cloudState.deletedNotes[note.id] = now;
-    notes = notes.filter((note) => !selectedNoteIds.has(note.id));
+    for (const note of selected) NoteLifecycle.moveToTrash(note, now);
     notes.unshift(merged);
     if (selected.some((note) => note.id === activeId)) activeId = merged.id;
     clearNoteSelection();
     closeNoteActionMenu();
-    void persistCloudState();
     renderList();
+    if (trashPanelOpen) renderTrashPanel();
     activeId = merged.id;
     renderEditor();
     await saveNow();
-    showToast(`${selected.length} notes merged`);
+    showToast(`${selected.length} notes merged · originals moved to Trash`);
+  }
+
+  function renderTrashPanel() {
+    if (!els.trashList) return;
+    const trashed = notes.filter(isNoteTrashed).sort((a, b) => Number(b.trashedAt) - Number(a.trashedAt));
+    els.trashList.replaceChildren();
+    els.emptyTrashButton.disabled = trashed.length === 0;
+    els.emptyTrashButton.classList.toggle("hidden", trashed.length === 0);
+    if (!trashed.length) {
+      const empty = document.createElement("div");
+      empty.className = "trash-empty-state";
+      empty.innerHTML = '<span class="trash-empty-icon" aria-hidden="true">♧</span><strong>Trash is empty</strong><small>Deleted notes will appear here for 30 days.</small>';
+      els.trashList.append(empty);
+      return;
+    }
+    const now = Date.now();
+    for (const note of trashed) {
+      const card = document.createElement("article");
+      card.className = "trash-note-card";
+      card.dataset.tint = String(Number.isInteger(note.tint) ? note.tint : 0);
+      card.dataset.texture = String(Number.isInteger(note.texture) ? note.texture : 0);
+      const head = document.createElement("div");
+      head.className = "trash-note-head";
+      const title = document.createElement("strong");
+      title.textContent = noteTitle(note);
+      const detail = document.createElement("small");
+      const expiresAt = Number(note.trashedAt) + TRASH_RETENTION_MS;
+      const daysLeft = Math.max(0, Math.ceil((expiresAt - now) / (24 * 60 * 60 * 1000)));
+      detail.textContent = daysLeft <= 1 ? "Deleted note · expires within 24 hours" : `Deleted ${new Date(note.trashedAt).toLocaleDateString()} · ${daysLeft} days left`;
+      head.append(title, detail);
+      const preview = document.createElement("p");
+      preview.className = "trash-note-preview";
+      preview.textContent = notePreview(note);
+      const actions = document.createElement("div");
+      actions.className = "trash-note-actions";
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.dataset.trashAction = "restore";
+      restore.dataset.noteId = note.id;
+      restore.className = "trash-restore-button";
+      restore.textContent = "Restore";
+      const destroy = document.createElement("button");
+      destroy.type = "button";
+      destroy.dataset.trashAction = "destroy";
+      destroy.dataset.noteId = note.id;
+      destroy.className = "trash-destroy-button";
+      destroy.textContent = "Delete forever";
+      actions.append(restore, destroy);
+      card.append(head, preview, actions);
+      els.trashList.append(card);
+    }
+  }
+
+  function openTrash() {
+    closeNoteActionMenu();
+    clearNoteSelection();
+    trashPanelOpen = true;
+    renderTrashPanel();
+    els.trashPanel.classList.remove("hidden");
+    els.trashPanel.setAttribute("aria-hidden", "false");
+    if (window.SIDENOTE_ANDROID && document.activeElement?.blur) document.activeElement.blur();
+  }
+
+  function closeTrash() {
+    trashPanelOpen = false;
+    els.trashPanel.classList.add("hidden");
+    els.trashPanel.setAttribute("aria-hidden", "true");
+    els.trashButton.focus?.({ preventScroll: true });
+  }
+
+  async function restoreTrashNote(id) {
+    const note = notes.find((item) => item.id === id && isNoteTrashed(item));
+    if (!note) return;
+    if (!NoteLifecycle.restore(note, Date.now())) {
+      await permanentlyDeleteTrashNotes([id], { ask: false, expired: true });
+      showToast("This note's 30-day retention period has ended");
+      return;
+    }
+    renderList();
+    renderTrashPanel();
+    await saveNow();
+    showToast("Note restored");
+  }
+
+  async function permanentlyDeleteTrashNotes(ids, { ask = true, expired = false } = {}) {
+    const selected = notes.filter((note) => ids.includes(note.id) && isNoteTrashed(note));
+    if (!selected.length) return;
+    if (ask && !window.confirm(`Permanently delete ${selected.length} note${selected.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const deletedAt = Date.now();
+    cloudState.deletedNotes = cloudState.deletedNotes || {};
+    for (const note of selected) cloudState.deletedNotes[note.id] = deletedAt;
+    notes = notes.filter((note) => !ids.includes(note.id));
+    if (ids.includes(activeId)) activeId = null;
+    selectedNoteIds.clear();
+    void persistCloudState();
+    renderList();
+    renderTrashPanel();
+    if (currentNote() === null && activeId === null) renderEditor();
+    await saveNow();
+    if (!expired) showToast(`${selected.length} note${selected.length === 1 ? "" : "s"} permanently deleted`);
+  }
+
+  async function emptyTrash() {
+    const ids = notes.filter(isNoteTrashed).map((note) => note.id);
+    if (!ids.length) return;
+    await permanentlyDeleteTrashNotes(ids, { ask: true });
+  }
+
+  function purgeExpiredTrash({ persist = true } = {}) {
+    const now = Date.now();
+    const purged = NoteLifecycle.purgeExpired(notes, cloudState.deletedNotes || {}, now);
+    const expiredIds = purged.expiredIds;
+    if (!expiredIds.length) return 0;
+    const expiredSet = new Set(expiredIds);
+    notes = purged.notes;
+    cloudState.deletedNotes = purged.deletedNotes;
+    if (expiredSet.has(activeId)) activeId = null;
+    if (persist) {
+      void persistCloudState();
+      renderList();
+      renderTrashPanel();
+      if (!currentNote()) renderEditor();
+      void saveNow();
+    }
+    return expiredIds.length;
+  }
+
+  function setCurrentNoteStyle(field, value) {
+    const note = currentNote();
+    if (!note || !["tint", "texture"].includes(field)) return;
+    const next = Number(value);
+    const max = field === "tint" ? 6 : 4;
+    if (!Number.isInteger(next) || next < 0 || next > max || Number(note[field]) === next) return;
+    note[field] = next;
+    note.updatedAt = Date.now();
+    renderList();
+    els.editorWrap.dataset[field] = String(next);
+    renderNoteStyleChoices(note);
+    scheduleSave();
+  }
+
+  function renderNoteStyleChoices(note = currentNote()) {
+    if (!note || !els.noteStylePanel) return;
+    for (const button of els.noteStylePanel.querySelectorAll("[data-style-tint]")) {
+      button.setAttribute("aria-pressed", String(Number(button.dataset.styleTint) === Number(note.tint)));
+    }
+    for (const button of els.noteStylePanel.querySelectorAll("[data-style-texture]")) {
+      button.setAttribute("aria-pressed", String(Number(button.dataset.styleTexture) === Number(note.texture)));
+    }
+  }
+
+  function toggleNoteStylePanel(force) {
+    const open = typeof force === "boolean" ? force : els.noteStylePanel.classList.contains("hidden");
+    els.noteStylePanel.classList.toggle("hidden", !open);
+    els.noteStyleButton.setAttribute("aria-expanded", String(open));
+    els.noteStyleButton.title = open ? "Hide note appearance" : "Change note appearance";
+    if (open) renderNoteStyleChoices();
   }
 
   function togglePinForNote(id) {
@@ -637,6 +818,7 @@
     els.emptyState.classList.toggle("hidden", hasNote);
     els.noteEditor.classList.toggle("hidden", !hasNote);
     els.noteEditor.classList.remove("toolbar-open");
+    toggleNoteStylePanel(false);
     els.writingToolbarToggle.setAttribute("aria-expanded", "false");
     els.writingToolbarToggle.title = "Show writing tools";
     els.writingToolbarToggle.setAttribute("aria-label", "Show writing tools");
@@ -648,14 +830,18 @@
       delete els.editorWrap.dataset.texture;
       const emptyHeading = els.emptyState.querySelector("h2");
       const emptyDescription = els.emptyState.querySelector("p");
-      if (emptyHeading) emptyHeading.textContent = notes.length ? "Choose a note." : "A note to self.";
-      if (emptyDescription) emptyDescription.textContent = notes.length
+      resetEditorHistory(null);
+      const liveCount = activeNotes().length;
+      if (emptyHeading) emptyHeading.textContent = liveCount ? "Choose a note." : "A note to self.";
+      if (emptyDescription) emptyDescription.textContent = liveCount
         ? "Select a note above, or start a new one."
         : "Catch a thought before it disappears.";
       return;
     }
     els.editorWrap.dataset.tint = String(Number.isInteger(note.tint) ? note.tint : 0);
     els.editorWrap.dataset.texture = String(Number.isInteger(note.texture) ? note.texture : 0);
+    ensureEditorHistory(note);
+    renderNoteStyleChoices(note);
 
     els.editorInfo.title = metadataText(note);
     els.editorInfo.setAttribute("aria-label", "Note details. Hover to see last edited time, word count, and character count.");
@@ -764,18 +950,126 @@
   async function deleteCurrentNote() {
     const note = currentNote();
     if (!note) return;
-    const title = noteTitle(note);
-    if (settings.confirmDelete && !window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
-    flushSave();
-    cloudState.deletedNotes = cloudState.deletedNotes || {};
-    cloudState.deletedNotes[note.id] = Date.now();
-    void persistCloudState();
-    notes = notes.filter((item) => item.id !== note.id);
-    activeId = null;
-    renderList();
-    renderEditor();
-    await saveNow();
-    showToast("Note deleted");
+    await deleteNotesByIds([note.id]);
+  }
+
+  function makeEditorSnapshot(field = "body") {
+    return {
+      title: els.title.value,
+      body: els.body.value,
+      field,
+      titleStart: els.title.selectionStart || 0,
+      titleEnd: els.title.selectionEnd || 0,
+      bodyStart: els.body.selectionStart || 0,
+      bodyEnd: els.body.selectionEnd || 0,
+      bodyScrollTop: els.body.scrollTop || 0
+    };
+  }
+
+  function resetEditorHistory(note) {
+    editorHistory = {
+      noteId: note?.id || null, undo: [], redo: [],
+      lastSnapshot: note ? { title: safeText(note.title), body: safeText(note.body), field: "body", titleStart: 0, titleEnd: 0, bodyStart: 0, bodyEnd: 0, bodyScrollTop: 0 } : null,
+      lastAt: 0, lastField: "", lastInputType: ""
+    };
+    updateUndoRedoButtons();
+  }
+
+  function ensureEditorHistory(note) {
+    if (!note) { resetEditorHistory(null); return; }
+    if (editorHistory.noteId !== note.id || !editorHistory.lastSnapshot ||
+        editorHistory.lastSnapshot.title !== safeText(note.title) || editorHistory.lastSnapshot.body !== safeText(note.body)) {
+      resetEditorHistory(note);
+    }
+  }
+
+  function recordEditorHistory(field, inputType = "insertText") {
+    if (historyApplying || !currentNote()) return;
+    ensureEditorHistory(currentNote());
+    const next = makeEditorSnapshot(field);
+    const previous = editorHistory.lastSnapshot;
+    if (!previous || (previous.title === next.title && previous.body === next.body)) return;
+    const now = Date.now();
+    const newGroup = now - editorHistory.lastAt > 650 || editorHistory.lastField !== field || editorHistory.lastInputType !== inputType;
+    if (newGroup) {
+      editorHistory.undo.push(previous);
+      if (editorHistory.undo.length > 120) editorHistory.undo.shift();
+      editorHistory.redo = [];
+    }
+    editorHistory.lastSnapshot = next;
+    editorHistory.lastAt = now;
+    editorHistory.lastField = field;
+    editorHistory.lastInputType = inputType;
+    updateUndoRedoButtons();
+  }
+
+  function restoreEditorSnapshot(snapshot) {
+    const note = currentNote();
+    if (!note || !snapshot) return;
+    historyApplying = true;
+    try {
+      els.title.value = snapshot.title;
+      els.body.value = snapshot.body;
+      note.title = snapshot.title;
+      note.body = snapshot.body;
+      note.updatedAt = Date.now();
+      renderBodyMirror();
+      renderList();
+      const target = snapshot.field === "title" ? els.title : els.body;
+      const start = snapshot.field === "title" ? snapshot.titleStart : snapshot.bodyStart;
+      const end = snapshot.field === "title" ? snapshot.titleEnd : snapshot.bodyEnd;
+      target.focus({ preventScroll: true });
+      target.setSelectionRange(Math.min(start, target.value.length), Math.min(end, target.value.length));
+      if (target === els.body) {
+        els.body.scrollTop = snapshot.bodyScrollTop || 0;
+        syncBodyMirrorScroll();
+      }
+      editorHistory.lastSnapshot = makeEditorSnapshot(snapshot.field);
+      editorHistory.lastAt = 0;
+      editorHistory.lastField = "";
+      editorHistory.lastInputType = "";
+    } finally {
+      historyApplying = false;
+    }
+    updateUndoRedoButtons();
+    scheduleSave();
+  }
+
+  function undoEditor() {
+    if (!currentNote() || !editorHistory.undo.length) return;
+    const current = makeEditorSnapshot(document.activeElement === els.title ? "title" : "body");
+    const previous = editorHistory.undo.pop();
+    editorHistory.redo.push(current);
+    restoreEditorSnapshot(previous);
+    showToast("Undo");
+  }
+
+  function redoEditor() {
+    if (!currentNote() || !editorHistory.redo.length) return;
+    const current = makeEditorSnapshot(document.activeElement === els.title ? "title" : "body");
+    const next = editorHistory.redo.pop();
+    editorHistory.undo.push(current);
+    restoreEditorSnapshot(next);
+    showToast("Redo");
+  }
+
+  function updateUndoRedoButtons() {
+    if (els.undoButton) els.undoButton.disabled = !editorHistory.undo.length;
+    if (els.redoButton) els.redoButton.disabled = !editorHistory.redo.length;
+  }
+
+  function handleUndoRedoShortcut(event) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || !currentNote()) return;
+    const target = event.target;
+    if (target !== els.body && target !== els.title) return;
+    const key = safeText(event.key).toLowerCase();
+    if (key === "z" && event.shiftKey) {
+      event.preventDefault(); event.stopPropagation(); redoEditor();
+    } else if (key === "z") {
+      event.preventDefault(); event.stopPropagation(); undoEditor();
+    } else if (key === "y" && !event.shiftKey) {
+      event.preventDefault(); event.stopPropagation(); redoEditor();
+    }
   }
 
   async function copyCurrentNote() {
@@ -1210,7 +1504,7 @@
   }
 
   function showWritingTips() {
-    showToast("Enter continues 1. / a. / a) / bullet lists · click checkboxes to complete tasks · Tab indents · brackets auto-close");
+    showToast("Ctrl/Cmd+Z undo · Ctrl/Cmd+Y redo · Enter continues lists · Tab indents · click checkboxes to complete tasks");
   }
 
   function updatePageLinkButton(note) {
@@ -1354,7 +1648,7 @@
   function linkedNoteForUrl(rawUrl) {
     const pageUrl = normalizePageUrl(rawUrl);
     if (!pageUrl) return null;
-    const candidates = notes.filter((note) => noteLinkedUrl(note) === pageUrl);
+    const candidates = notes.filter((note) => !isNoteTrashed(note) && noteLinkedUrl(note) === pageUrl);
     candidates.sort((a, b) => {
       if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
       return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
@@ -1456,13 +1750,18 @@
           linkedUrl,
           linkedTitle,
           linkDisabled,
+          trashedAt: Number(note.trashedAt) || 0,
+          trashStateAt: Number(note.trashStateAt) || Number(note.trashedAt) || 0,
           createdAt: Number(note.createdAt) || Date.now(),
           updatedAt: body !== originalBody
             ? Date.now()
             : (Number(note.updatedAt) || Number(note.createdAt) || Date.now())
         };
       });
-      if (needsMigration) await chrome.storage.local.set({ [STORAGE_KEY]: notes });
+      const purgedExpired = purgeExpiredTrash({ persist: false });
+      if (needsMigration || purgedExpired) {
+        await chrome.storage.local.set({ [STORAGE_KEY]: notes, [CLOUD_META_KEY]: { ...cloudState } });
+      }
       sortNotes();
       // Do not arbitrarily open the first note. Select one only when the active
       // webpage has a saved association; otherwise leave the editor closed.
@@ -1762,6 +2061,8 @@
       linkedUrl: safeText(note.linkedUrl),
       linkedTitle: safeText(note.linkedTitle),
       linkDisabled: Boolean(note.linkDisabled),
+      trashedAt: Number(note.trashedAt) || 0,
+      trashStateAt: Number(note.trashStateAt) || Number(note.trashedAt) || 0,
       createdAt: Number(note.createdAt) || Date.now(),
       updatedAt: Number(note.updatedAt) || Number(note.createdAt) || Date.now()
     }));
@@ -1775,15 +2076,15 @@
     const byId = new Map();
     for (const note of [...normalizedBackupNotes(remote.notes || []), ...normalizedBackupNotes(local.notes || [])]) {
       const old = byId.get(note.id);
-      if (!old || Number(note.updatedAt) >= Number(old.updatedAt)) byId.set(note.id, note);
+      if (!old) byId.set(note.id, note);
+      else byId.set(note.id, NoteLifecycle.mergeVersions(old, note));
     }
     const mergedNotes = [];
     for (const [id, note] of byId) {
       const deletedAt = Number(deletedNotes[id]) || 0;
-      if (deletedAt >= Number(note.updatedAt || 0)) continue;
-      // If a note was recreated/edited after a prior deletion, clear the stale
-      // tombstone so another device's clock skew cannot delete it again later.
-      if (deletedAt > 0) delete deletedNotes[id];
+      // Permanent deletion is final for a note ID. A stale offline device must
+      // not resurrect it with an edit made after the deletion timestamp.
+      if (deletedAt > 0) continue;
       mergedNotes.push(note);
     }
     const localSettingsAt = Number(local.settingsUpdatedAt) || 0;
@@ -1829,7 +2130,7 @@
     };
     const previousActiveId = activeId;
     const previousActive = currentNote();
-    const nextActive = previousActiveId ? safePayload.notes.find((note) => note.id === previousActiveId) || null : null;
+    const nextActive = previousActiveId ? safePayload.notes.find((note) => note.id === previousActiveId && !isNoteTrashed(note)) || null : null;
     const activeContentChanged = Boolean(previousActiveId && (
       !previousActive || !nextActive ||
       previousActive.title !== nextActive.title ||
@@ -1837,7 +2138,8 @@
       Boolean(previousActive.pinned) !== Boolean(nextActive.pinned) ||
       safeText(previousActive.linkedUrl) !== safeText(nextActive.linkedUrl) ||
       safeText(previousActive.linkedTitle) !== safeText(nextActive.linkedTitle) ||
-      Boolean(previousActive.linkDisabled) !== Boolean(nextActive.linkDisabled)
+      Boolean(previousActive.linkDisabled) !== Boolean(nextActive.linkDisabled) ||
+      Number(previousActive.trashedAt || 0) !== Number(nextActive.trashedAt || 0)
     ));
 
     cloudState.deletedNotes = { ...safePayload.deletedNotes };
@@ -1880,6 +2182,7 @@
       els.appShell.style.setProperty("--notes-area-height", `${safeHeight}px`);
       els.splitter.setAttribute("aria-valuenow", String(safeHeight));
       renderList();
+      if (trashPanelOpen) renderTrashPanel();
       if (activeContentChanged || (!previousActiveId && activeId)) {
         renderEditor({ preserveFocus: preserveEditorFocus });
       } else if (nextActive) {
@@ -1887,6 +2190,9 @@
         // the currently edited note itself didn't change.
         els.editorInfo.title = metadataText(nextActive);
         updatePageLinkButton(nextActive);
+        els.editorWrap.dataset.tint = String(Number.isInteger(nextActive.tint) ? nextActive.tint : 0);
+        els.editorWrap.dataset.texture = String(Number.isInteger(nextActive.texture) ? nextActive.texture : 0);
+        renderNoteStyleChoices(nextActive);
         els.pin.classList.toggle("pinned", Boolean(nextActive.pinned));
         els.pin.setAttribute("aria-pressed", String(Boolean(nextActive.pinned)));
         els.pin.setAttribute("title", nextActive.pinned ? "Unpin note" : "Pin note");
@@ -2144,18 +2450,23 @@
   }
 
   async function currentFirebaseIdToken() {
-    if (!firebaseSession?.refreshToken) throw new Error("Sign in to your SideNote account to sync.");
+    if (!firebaseSession?.refreshToken && !firebaseSession?.nativeAuth) throw new Error("Sign in to your SideNote account to sync.");
     if (firebaseIdToken && Number(firebaseSession.expiresAt) > Date.now() + 60_000) return firebaseIdToken;
     try {
-      const refreshed = await FirebaseAPI.refreshSession(firebaseSession.refreshToken);
-      if (refreshed.localId && firebaseSession.uid && refreshed.localId !== firebaseSession.uid) {
+      const sessionBeforeRefresh = firebaseSession;
+      const nativeRefreshMarker = sessionBeforeRefresh.nativeAuth ? `native:${sessionBeforeRefresh.uid}` : "";
+      const refreshed = await FirebaseAPI.refreshSession(nativeRefreshMarker || sessionBeforeRefresh.refreshToken);
+      if (refreshed.localId && sessionBeforeRefresh.uid && refreshed.localId !== sessionBeforeRefresh.uid) {
         throw new Error("Firebase returned a different account. Sign in again to protect your notes.");
       }
-      firebaseIdToken = refreshed.idToken;
+      firebaseIdToken = safeText(refreshed.idToken);
       firebaseSession = {
-        ...firebaseSession,
-        refreshToken: refreshed.refreshToken,
-        expiresAt: Date.now() + refreshed.expiresIn * 1000
+        ...sessionBeforeRefresh,
+        // Native FirebaseAuth owns the refresh token. Never replace its sentinel
+        // with undefined after a token refresh or the next refresh falls back to REST.
+        refreshToken: sessionBeforeRefresh.nativeAuth ? nativeRefreshMarker : (refreshed.refreshToken || sessionBeforeRefresh.refreshToken),
+        nativeAuth: Boolean(sessionBeforeRefresh.nativeAuth),
+        expiresAt: Date.now() + (Number(refreshed.expiresIn) || 3600) * 1000
       };
       await persistFirebaseSession();
       return firebaseIdToken;
@@ -2174,15 +2485,21 @@
   async function finishFirebaseSignIn(authResult, providerId) {
     await saveNow({ skipFirebaseSyncSchedule: true });
     const uid = safeText(authResult.localId || authResult.user_id);
-    if (!uid || !authResult.idToken || !authResult.refreshToken) throw new Error("Firebase signed in but did not return a complete session.");
+    const nativeAuth = Boolean(authResult.nativeAuth);
+    if (!uid || (!authResult.idToken && !nativeAuth) || (!nativeAuth && !authResult.refreshToken)) {
+      throw new Error("Firebase signed in but did not return a complete session.");
+    }
     clearTimeout(firebaseSyncTimer);
     await prepareLocalDataForAccount(uid);
     firebaseSession = {
       uid,
       email: safeText(authResult.email),
       displayName: safeText(authResult.displayName || authResult.email?.split("@")[0] || "SideNote user"),
-      providerId,
-      refreshToken: authResult.refreshToken,
+      providerId: safeText(authResult.providerId || providerId),
+      nativeAuth,
+      // Native FirebaseAuth owns and refreshes Android credentials. The sentinel
+      // identifies that session without copying a refresh token into WebView storage.
+      refreshToken: nativeAuth ? `native:${uid}` : authResult.refreshToken,
       expiresAt: Date.now() + (Number(authResult.expiresIn) || 3600) * 1000
     };
     firebaseIdToken = authResult.idToken;
@@ -2247,6 +2564,9 @@
     clearTimeout(firebaseSyncTimer);
     await saveNow({ skipFirebaseSyncSchedule: true });
     await saveCurrentAccountSnapshot(firebaseSession.uid);
+    if (window.SIDENOTE_ANDROID && firebaseSession.nativeAuth) {
+      await FirebaseAPI.signOutNative();
+    }
     firebaseSession = null;
     firebaseIdToken = "";
     firebaseSyncPrefs.lastError = "";
@@ -2262,6 +2582,8 @@
       tint: Number.isInteger(doc.tint) && doc.tint >= 0 && doc.tint <= 6 ? doc.tint : 0,
       texture: Number.isInteger(doc.texture) && doc.texture >= 0 && doc.texture <= 4 ? doc.texture : 0,
       linkedUrl: safeText(doc.linkedUrl), linkedTitle: safeText(doc.linkedTitle), linkDisabled: Boolean(doc.linkDisabled),
+      trashedAt: Number(doc.trashedAt) || 0,
+      trashStateAt: Number(doc.trashStateAt) || Number(doc.trashedAt) || 0,
       createdAt: Number(doc.createdAt) || Date.now(), updatedAt: Number(doc.updatedAt) || Number(doc.createdAt) || Date.now()
     };
   }
@@ -2278,10 +2600,10 @@
     if (!remote) return false;
     const keys = desired.deleted
       ? ["id", "deleted", "deletedAt", "updatedAt"]
-      : ["id", "title", "body", "pinned", "tint", "texture", "linkedUrl", "linkedTitle", "linkDisabled", "createdAt", "updatedAt", "deleted"];
+      : ["id", "title", "body", "pinned", "tint", "texture", "linkedUrl", "linkedTitle", "linkDisabled", "trashedAt", "trashStateAt", "createdAt", "updatedAt", "deleted"];
     return keys.every((key) => {
       if (key === "deleted" || key === "pinned" || key === "linkDisabled") return Boolean(remote[key]) === Boolean(desired[key]);
-      if (["deletedAt", "createdAt", "updatedAt", "tint", "texture"].includes(key)) return Number(remote[key] || 0) === Number(desired[key] || 0);
+      if (["deletedAt", "createdAt", "updatedAt", "tint", "texture", "trashedAt", "trashStateAt"].includes(key)) return Number(remote[key] || 0) === Number(desired[key] || 0);
       return safeText(remote[key]) === safeText(desired[key]);
     });
   }
@@ -2427,26 +2749,78 @@
           lastError: safeText(pref.lastError)
         };
       }
-      const session = stored[FIREBASE_SESSION_KEY];
-      const localEdits = notes.some((note) => Number(note.updatedAt) > (Number(firebaseSyncPrefs.lastSyncedAt) || 0));
-      if (!firebaseSyncPrefs.lastRemoteRevision || !firebaseSyncPrefs.lastSyncedAt || localEdits ||
+      const storedSession = stored[FIREBASE_SESSION_KEY];
+
+      // Native FirebaseAuth restores its own secure session after process restarts.
+      // Re-hydrate the WebView account UI from that source of truth on Android.
+      if (window.SIDENOTE_ANDROID && FirebaseAPI.getNativeSession) {
+        try {
+          const nativeSession = await FirebaseAPI.getNativeSession();
+          if (nativeSession?.localId) {
+            if (storedSession?.uid !== nativeSession.localId) {
+              await prepareLocalDataForAccount(nativeSession.localId);
+            }
+            firebaseSession = {
+              uid: safeText(nativeSession.localId),
+              email: safeText(nativeSession.email),
+              displayName: safeText(nativeSession.displayName || nativeSession.email?.split("@")[0] || "SideNote user"),
+              providerId: safeText(nativeSession.providerId || "password"),
+              nativeAuth: true,
+              refreshToken: `native:${safeText(nativeSession.localId)}`,
+              expiresAt: Date.now() + (Number(nativeSession.expiresIn) || 3600) * 1000
+            };
+            // A cached Firebase user remains signed in while offline even if its
+            // ID token cannot be refreshed until connectivity returns.
+            firebaseIdToken = safeText(nativeSession.idToken);
+            await chrome.storage.local.set({ [FIREBASE_OWNER_KEY]: firebaseSession.uid });
+            await persistFirebaseSession();
+          } else if (storedSession?.nativeAuth) {
+            // Native session was signed out elsewhere or revoked. Keep the local notes.
+            firebaseSession = null;
+            firebaseIdToken = "";
+            await persistFirebaseSession();
+          }
+        } catch (nativeError) {
+          console.warn("SideNote: native Firebase session check failed", nativeError);
+          if (storedSession?.nativeAuth) {
+            // Do not keep a stale WebView marker when the native SDK cannot restore
+            // the account. Local notes remain untouched.
+            firebaseSession = null;
+            firebaseIdToken = "";
+            firebaseSyncPrefs.lastError = safeText(nativeError?.message || "Couldn't restore the Android account session.");
+            await persistFirebaseSession();
+          }
+        }
+      }
+
+      const session = firebaseSession || storedSession;
+      const lastSyncedAt = Number(firebaseSyncPrefs.lastSyncedAt) || 0;
+      const localEdits = notes.some((note) => Number(note.updatedAt) > lastSyncedAt);
+      const pendingPermanentDeletes = Object.values(cloudState.deletedNotes || {}).some((time) => Number(time) > lastSyncedAt);
+      if (!firebaseSyncPrefs.lastRemoteRevision || !firebaseSyncPrefs.lastSyncedAt || localEdits || pendingPermanentDeletes ||
           Number(cloudState.settingsUpdatedAt) > (Number(firebaseSyncPrefs.lastSyncedAt) || 0) ||
           Number(cloudState.layoutUpdatedAt) > (Number(firebaseSyncPrefs.lastSyncedAt) || 0)) {
         firebaseLocalDirty = true;
       }
-      if (session?.uid && session?.refreshToken) {
+      if (session?.uid && (session?.refreshToken || session?.nativeAuth)) {
         firebaseSession = { ...session };
         renderFirebaseUI();
-        firebaseIdToken = "";
+        if (!firebaseIdToken) firebaseIdToken = "";
         try {
           await currentFirebaseIdToken();
           renderFirebaseUI();
           if (firebaseSyncPrefs.autoSync) void syncFirebaseNow({ manual: false });
         } catch (error) {
           firebaseSyncPrefs.lastError = safeText(error.message || "Please sign in again.");
-          firebaseSession = null;
-          firebaseIdToken = "";
-          await persistFirebaseSession();
+          const errorText = safeText(error.message || error);
+          const transientNativeFailure = Boolean(firebaseSession?.nativeAuth) &&
+            /network|offline|timeout|temporar|unavailable|couldn't reach|connection|failed to connect/i.test(errorText) &&
+            !/user disabled|user not found|invalid user|revoked|token expired|invalid credential/i.test(errorText);
+          if (!transientNativeFailure) {
+            firebaseSession = null;
+            firebaseIdToken = "";
+            await persistFirebaseSession();
+          }
         }
       }
     } catch (error) {
@@ -2508,6 +2882,7 @@
     scheduleFirebaseSync(300);
   });
   window.setInterval(() => { if (!document.hidden) void syncFirebaseNow({ manual: false, pollOnly: true }); }, 30_000);
+  window.setInterval(() => { purgeExpiredTrash(); }, 60 * 60 * 1000);
 
   function currentNotesHeight() {
     const fromVariable = parseFloat(getComputedStyle(els.appShell).getPropertyValue("--notes-area-height"));
@@ -2611,9 +2986,29 @@
     void runNoteAction(button.dataset.noteAction);
   });
   document.addEventListener("pointermove", (event) => {
-    if (!notePressState || event.pointerId !== notePressState.pointerId || notePressState.triggered) return;
-    if (Math.hypot(event.clientX - notePressState.x, event.clientY - notePressState.y) > 9) cancelNoteLongPress(event);
+    if (!notePressState || event.pointerId !== notePressState.pointerId) return;
+    if (!notePressState.triggered) {
+      if (Math.hypot(event.clientX - notePressState.x, event.clientY - notePressState.y) > 10) cancelNoteLongPress(event);
+      return;
+    }
+    const underPointer = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".note-card");
+    const nextId = underPointer?.dataset.noteId;
+    if (nextId && nextId !== notePressState.lastDragId) {
+      notePressState.lastDragId = nextId;
+      longPressTriggeredId = nextId;
+      longPressTriggeredAt = Date.now();
+      if (!selectedNoteIds.has(nextId)) {
+        selectedNoteIds.add(nextId);
+        updateSelectionUI();
+        if (window.SIDENOTE_ANDROID) window.SideNoteAndroid?.vibrate?.(8);
+      }
+    }
   }, true);
+  // Once a long-press has entered drag-selection mode, prevent the browser from
+  // interpreting the finger movement as a scroll gesture until the finger lifts.
+  document.addEventListener("touchmove", (event) => {
+    if (notePressState?.triggered) event.preventDefault();
+  }, { passive: false, capture: true });
   document.addEventListener("pointerup", finishNoteLongPress, true);
   document.addEventListener("pointercancel", finishNoteLongPress, true);
   document.addEventListener("pointerdown", (event) => {
@@ -2625,6 +3020,14 @@
     if (event.key === "Escape" && !els.noteActionMenu.classList.contains("hidden")) {
       event.preventDefault();
       closeNoteActionMenu();
+    }
+    if (event.key === "Escape" && !els.trashPanel.classList.contains("hidden")) {
+      event.preventDefault();
+      closeTrash();
+    }
+    if (event.key === "Escape" && !els.noteStylePanel.classList.contains("hidden")) {
+      event.preventDefault();
+      toggleNoteStylePanel(false);
     }
   });
   window.addEventListener("scroll", closeNoteActionMenu, true);
@@ -2698,11 +3101,13 @@
     void saveSettings();
   });
   els.search.addEventListener("input", renderList);
-  els.title.addEventListener("input", () => {
+  els.title.addEventListener("input", (event) => {
+    recordEditorHistory("title", event.inputType || "insertText");
     updateCurrentNote("title", els.title.value);
     if (!suppressToolbarAutohide) hideWritingToolbar();
   });
-  els.body.addEventListener("input", () => {
+  els.body.addEventListener("input", (event) => {
+    recordEditorHistory("body", event.inputType || "insertText");
     updateCurrentNote("body", els.body.value);
     renderBodyMirror();
     if (!suppressToolbarAutohide) hideWritingToolbar();
@@ -2725,6 +3130,7 @@
   function hideWritingToolbar() {
     if (!settings.autoHideToolbar) return;
     els.noteEditor.classList.remove("toolbar-open");
+    toggleNoteStylePanel(false);
     els.writingToolbarToggle.setAttribute("aria-expanded", "false");
     els.writingToolbarToggle.title = "Show writing tools";
     els.writingToolbarToggle.setAttribute("aria-label", "Show writing tools");
@@ -2746,6 +3152,33 @@
     }
   });
   els.pin.addEventListener("click", togglePin);
+  els.undoButton.addEventListener("click", undoEditor);
+  els.redoButton.addEventListener("click", redoEditor);
+  document.addEventListener("keydown", handleUndoRedoShortcut, true);
+  els.noteStyleButton.addEventListener("click", () => toggleNoteStylePanel());
+  els.noteStyleClose.addEventListener("click", () => toggleNoteStylePanel(false));
+  els.noteStylePanel.addEventListener("click", (event) => {
+    const tintButton = event.target.closest("[data-style-tint]");
+    const textureButton = event.target.closest("[data-style-texture]");
+    if (tintButton) setCurrentNoteStyle("tint", tintButton.dataset.styleTint);
+    if (textureButton) setCurrentNoteStyle("texture", textureButton.dataset.styleTexture);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!els.noteStylePanel.classList.contains("hidden") &&
+        !els.noteStylePanel.contains(event.target) && !els.noteStyleButton.contains(event.target)) {
+      toggleNoteStylePanel(false);
+    }
+  });
+  els.trashButton.addEventListener("click", openTrash);
+  els.trashClose.addEventListener("click", closeTrash);
+  els.emptyTrashButton.addEventListener("click", () => { void emptyTrash(); });
+  els.trashList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-trash-action]");
+    if (!button) return;
+    const id = button.dataset.noteId;
+    if (button.dataset.trashAction === "restore") void restoreTrashNote(id);
+    if (button.dataset.trashAction === "destroy") void permanentlyDeleteTrashNotes([id], { ask: true });
+  });
   function returnToNotesList() {
     flushSave();
     activeId = null;
@@ -2831,7 +3264,10 @@
     });
   }
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void syncWithActivePage();
+    if (!document.hidden) {
+      purgeExpiredTrash();
+      void syncWithActivePage();
+    }
   });
 
   // If the panel is closed while a save is pending, commit on pagehide too.

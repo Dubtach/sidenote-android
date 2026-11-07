@@ -1,52 +1,65 @@
-# Build SideNote APK without Android Studio
+# Build SideNote Android APK with GitHub Actions
 
-This project includes a GitHub Actions workflow that builds the APK on GitHub's hosted runner. You do not need to install Android Studio or the Android SDK on your PC.
+You do not need Android Studio or the Android SDK on your computer. GitHub's runner builds the APK.
 
-## First: configure Google sign-in (optional)
+## Required GitHub repository secrets
 
-The Android app compiles without an OAuth client ID, but Google sign-in cannot work until you configure a Google OAuth client of type **Web application**.
+Add these under GitHub repository → Settings → Secrets and variables → Actions:
 
-1. In Google Cloud Console / Firebase Authentication, copy the Web application OAuth client ID for the `notebeedubtach` project. Do not use the Chrome Extension client ID.
-2. In your GitHub repository, open Settings → Secrets and variables → Actions → New repository secret.
-3. Name the secret `SIDENOTE_GOOGLE_WEB_CLIENT_ID` and paste the Web application client ID as its value.
-4. Push the project or manually run the workflow again. Gradle reads this secret from the workflow environment and embeds it in the build; it is not hardcoded into `AppConfig.java`.
-5. After a successful build, copy the SHA-1 printed in the Actions log into the Android app settings in Firebase (`com.dubtach.sidenote`).
+| Secret | Value |
+|---|---|
+| `SIDENOTE_GOOGLE_SERVICES_JSON_BASE64` | Base64-encoded `google-services.json` downloaded for Firebase project `notebeedubtach` and Android package `com.dubtach.sidenote`. |
+| `SIDENOTE_GOOGLE_WEB_CLIENT_ID` | The Google OAuth client ID whose application type is **Web application**. Do not use the Android or Chrome Extension OAuth client. |
 
-Email/password sign-in does not depend on that OAuth client ID. If email login fails, SideNote now shows a specific message for disabled providers, rejected API keys, and network failures. See `ANDROID_SETUP.md` for troubleshooting and the SHA-1/signing caveat.
+On Windows PowerShell, encode the JSON file with:
 
-## Upload the project to GitHub
+```powershell
+$encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes(".\google-services.json"))
+$encoded | Set-Clipboard
+```
 
-1. Sign in at <https://github.com/> and create a new repository, for example `sidenote-android`. A **private** repository is a good default for your app source.
-2. Do not add a README, license, or `.gitignore` during repository creation because this project already contains those files.
-3. Install the lightweight **Git for Windows** command-line tool if you don't have Git. You do not need Android Studio.
-4. Extract this ZIP to a folder. Open PowerShell or Command Prompt inside the extracted `sidenote-android-project` folder.
-5. Run the following commands, replacing the URL with the repository URL GitHub shows for your account:
+Paste the clipboard value into `SIDENOTE_GOOGLE_SERVICES_JSON_BASE64`.
 
-   ```powershell
-   git init
-   git add .
-   git commit -m "Add SideNote Android project and APK workflow"
-   git branch -M main
-   git remote add origin https://github.com/YOUR-USERNAME/sidenote-android.git
-   git push -u origin main
-   ```
+The workflow validates both secrets and checks that the JSON belongs to Firebase project `notebeedubtach` and Android package `com.dubtach.sidenote`.
 
-   Important: `git add .` includes the hidden `.github/workflows/build-apk.yml` workflow. Do not omit that folder.
+## Upload the project
 
-## Download the generated APK
+1. Create a private GitHub repository, for example `sidenote-android`.
+2. Extract the project ZIP.
+3. Install Git for Windows if necessary. Android Studio is not required.
+4. Open PowerShell in the extracted project root and run:
 
-1. Open your repository on GitHub and select the **Actions** tab.
-2. Open the run named **Build SideNote Android APK** triggered by your push. Wait until it shows a green check. (The first run needs to download Android build dependencies.)
-3. Open the completed run and scroll to **Artifacts**.
-4. Download `SideNote-Android-debug-APK` and unzip the artifact. It contains `app-debug.apk`.
-5. Transfer `app-debug.apk` to your Android phone and open it. If Android asks, allow your file manager/browser to install unknown apps.
+```powershell
+git init
+git add .
+git commit -m "Update SideNote Android"
+git branch -M main
+git remote add origin https://github.com/YOUR-USERNAME/sidenote-android.git
+git push -u origin main
+```
 
-Every push to `main` or `master` starts another build. You can also run it manually using **Actions → Build SideNote Android APK → Run workflow**.
+Replace `YOUR-USERNAME` with your GitHub username. Keep the hidden `.github` folder; it contains the build workflow.
 
-## Important limitations
+## Build and download
 
-- This workflow produces a **debug APK for personal testing**, not a production-signed release. Keep the debug signing key private if you generate/share a custom one.
-- GitHub Actions builds the app but does not install or test it on your phone. Test login, Firebase syncing, share-to-SideNote, offline edits, and long notes on the device.
-- The Android app's local storage is separate from Chrome's local storage. First sync extension-only notes to Firebase, then sign in to the same Firebase account in the Android app.
-- Google sign-in needs the correct Web OAuth client ID plus the Android package registration and signing fingerprints. Building the APK alone does not complete those Firebase Console steps.
-- Do not add service-account JSON files, private keys, or passwords to the repository. The Firebase web config and OAuth client ID are client configuration, not admin credentials.
+1. Open your repository → Actions → **Build SideNote Android APK**.
+2. A push to `main`/`master` starts the workflow automatically; you can also select Run workflow.
+3. Wait for the run to finish with a green check.
+4. Download the artifact named `SideNote-Android-debug-APK` from the completed run.
+5. Extract `app-debug.apk` and transfer it to the Android phone.
+
+The workflow prints the APK's SHA-1 and SHA-256 signing fingerprints. Register both in Firebase Project settings → Your apps → Android app `com.dubtach.sidenote`. If you add fingerprints after downloading the Firebase JSON, download a fresh `google-services.json`, update the Base64 secret, and rebuild.
+
+The workflow caches its debug keystore so consecutive builds can keep the same signature. GitHub may evict caches over time. For public distribution and dependable upgrades, use a dedicated release keystore stored in GitHub Secrets rather than a debug APK.
+
+## Authentication behavior
+
+SideNote v1.5.0 uses the native Firebase Android Auth SDK. Email/password uses FirebaseAuth directly. Google uses Android Credential Manager and the Web application OAuth client ID. See `ANDROID_SETUP.md` for detailed Firebase setup and error diagnostics.
+
+## Important
+
+- The project does not contain `google-services.json`; the workflow injects it from GitHub Secrets. Do not commit that file.
+- Do not commit service-account JSON, private signing keys, OAuth client secrets, or passwords.
+- This workflow creates a debug APK for personal testing, not a Play Store release.
+- Android local notes are separate from Chrome extension local storage. Sync Chrome notes to Firebase first if you need them on Android.
+- The app currently syncs while open and retries when network becomes available or when reopened; it does not run a permanent background sync service after the app is fully closed.

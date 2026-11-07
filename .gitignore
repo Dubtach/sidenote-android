@@ -5,3 +5,6 @@ local.properties
 build/
 app/build/
 *.iml
+
+# Firebase Android configuration (injected by GitHub Actions)
+app/google-services.json

@@ -1,53 +1,81 @@
-# SideNote Android — Firebase and Google sign-in setup
+# SideNote Android v1.5.0 — Firebase and Google sign-in setup
 
-Package name: `com.dubtach.sidenote`
+Package name: `com.dubtach.sidenote`  
 Firebase project: `notebeedubtach`
 
-## 1. Register this Android app in Firebase
+This release uses the **native Firebase Android Authentication SDK** for email/password and Google sign-in. Firestore note data continues to use the existing REST schema so it remains compatible with the Chrome extension.
+
+## 1. Register the Android app in Firebase
 
 1. Open Firebase Console → project `notebeedubtach` → Project settings → General.
-2. Under Your apps, add an Android app with package name `com.dubtach.sidenote`.
-3. Add SHA-1 and SHA-256 fingerprints for the debug signing key and, before release, the release signing key.
-4. For a default Windows debug keystore, run in Command Prompt:
+2. Under **Your apps**, add or select an Android app whose package name is exactly `com.dubtach.sidenote`.
+3. Download its `google-services.json` file. It must belong to project `notebeedubtach` and package `com.dubtach.sidenote`.
+4. Do not commit this file to GitHub. The build workflow receives it through a GitHub Actions secret.
 
-   ```bat
-   keytool -list -v -keystore "%USERPROFILE%\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
-   ```
+## 2. Add the GitHub Actions secrets
 
-   On macOS/Linux, use `~/.android/debug.keystore` in place of the Windows path.
+Open your GitHub repository → Settings → Secrets and variables → Actions → New repository secret.
 
-This project currently calls Firebase Auth/Firestore REST APIs using the Web app config in `firebase-config.js`, so it does not need the generated `google-services.json` to compile. Registering the app and fingerprints is still important for configuring Google sign-in.
+### Secret A: `SIDENOTE_GOOGLE_SERVICES_JSON_BASE64`
 
-## 2. Configure Google Credential Manager
+On Windows PowerShell, from the folder where `google-services.json` was downloaded, run:
 
-**Google sign-in is intentionally not active until a Web application OAuth client ID is supplied.** The Chrome Extension OAuth client ID is not the Android Credential Manager's server client ID.
+```powershell
+$encoded = [Convert]::ToBase64String([IO.File]::ReadAllBytes(".\google-services.json"))
+$encoded | Set-Clipboard
+```
 
-1. In Firebase Console → Authentication → Sign-in method, confirm Email/Password and Google are enabled.
-2. Open the Google provider settings and copy the **Web client ID** (OAuth client type `Web application`) from the same Google Cloud/Firebase project. Do not use the Chrome Extension client ID or the Android client ID.
-3. In your GitHub repository, open Settings → Secrets and variables → Actions → New repository secret.
-4. Set the secret name to exactly `SIDENOTE_GOOGLE_WEB_CLIENT_ID` and paste the Web application client ID as the secret value.
-5. Push the project changes or manually run Actions → Build SideNote Android APK. The workflow passes the secret to Gradle; it is not stored directly in source files. If the secret is absent, the workflow still builds, but Android Google sign-in displays a setup error.
-6. Register the Android app with package `com.dubtach.sidenote`, then add the SHA-1 fingerprint printed in the successful GitHub Actions build log to Firebase Console → Project settings → Your apps → Android app → SHA certificate fingerprints.
+Create the secret named `SIDENOTE_GOOGLE_SERVICES_JSON_BASE64` and paste the clipboard contents as its value.
 
-Credential Manager returns a Google ID token for the configured Web client; the app exchanges it with Firebase Authentication to obtain the normal SideNote Firebase session. The existing Chrome Extension client ID from the browser extension should remain in the extension's `manifest.json` and is not a substitute for this Web application client ID.
+On macOS/Linux:
 
-**Signing note:** GitHub-hosted runners generate a fresh debug signing key on each run by default. The printed SHA-1 matches that build's APK. If you want to install future APK builds as updates without uninstalling, configure a persistent signing keystore in GitHub Actions and keep the same signing key for all builds.
+```bash
+base64 -w 0 google-services.json
+```
 
-## 3. If email/password login fails
+Copy the entire output into the same GitHub secret. This is Firebase client configuration, not a service-account private key, but keep it out of public source repositories as a good practice.
 
-Email/password login does not require the Google OAuth client ID or Android SHA fingerprint. If it fails:
+### Secret B: `SIDENOTE_GOOGLE_WEB_CLIENT_ID`
 
-1. In Firebase Console → Authentication → Sign-in method, make sure Email/Password is enabled.
-2. Confirm `app/src/main/assets/www/firebase-config.js` still contains the Web app configuration for project `notebeedubtach`.
-3. Read the error shown in the SideNote account panel. Errors are mapped to actionable messages: wrong password/account, disabled provider, invalid/restricted API key, or network failure.
-4. If the message mentions `API_KEY_HTTP_REFERRER_BLOCKED`, open Google Cloud Console → APIs & Services → Credentials and review restrictions on the API key used by this Firebase Web app. A browser-only HTTP referrer allowlist may reject calls from the Android WebView origin. Adjust the key restrictions carefully instead of making the key unrestricted across unrelated APIs.
-5. If it says `Failed to fetch` or could not reach Firebase, test the device's network and retry on another network. A VPN, DNS filter, or network firewall may block `identitytoolkit.googleapis.com`.
+1. In Google Cloud Console → APIs & Services → Credentials, locate the OAuth 2.0 Client ID whose application type is **Web application** for this Firebase project.
+2. Copy that client ID. It ends in `.apps.googleusercontent.com`.
+3. Add it as the value of the GitHub Actions secret `SIDENOTE_GOOGLE_WEB_CLIENT_ID`.
 
-Please keep the full error message; it identifies whether the problem is app setup or the entered credentials.
+Do **not** use the Chrome Extension OAuth client ID or the Android OAuth client ID here. Credential Manager needs the Web application client ID as its server client ID.
 
-## 4. Verify Firestore security rules
+Both secrets are required by the build workflow. The workflow intentionally stops with a specific error if either is missing or invalid, rather than producing an APK with a broken login button.
 
-The app expects the same rules as the Chrome extension, restricting each signed-in user to `users/{uid}/...`:
+## 3. First build and Android signing fingerprints
+
+1. Push the updated project to the repository or open GitHub → Actions → **Build SideNote Android APK** → Run workflow.
+2. When the first build succeeds, open its log and find the SHA-1 and SHA-256 fingerprints printed by `apksigner`.
+3. In Firebase Console → Project settings → Your apps → Android app `com.dubtach.sidenote` → **SHA certificate fingerprints**, add both SHA-1 and SHA-256.
+4. Save the Firebase settings. If you add fingerprints after downloading `google-services.json`, download a fresh copy and update `SIDENOTE_GOOGLE_SERVICES_JSON_BASE64` using the PowerShell command above.
+5. Run the workflow again and install the new APK. Google sign-in should now be able to verify the Android package/signature.
+
+The GitHub Actions workflow caches a debug keystore so subsequent builds keep the same signature. GitHub may eventually evict old caches; if that happens, the next build can have a new fingerprint. For a long-lived release signing identity, set up a dedicated persistent keystore and use it for every release build.
+
+## 4. Enable the Firebase sign-in providers
+
+In Firebase Console → Authentication → Sign-in method, enable:
+
+- **Email/Password** for email registration and login.
+- **Google** for Credential Manager sign-in.
+
+Email/password login does not depend on Google OAuth or SHA fingerprints, but it does require a valid `google-services.json` in the build so the native Firebase SDK can initialize.
+
+## 5. How Android authentication works in v1.5.0
+
+- Email/password registration and sign-in use `FirebaseAuth.createUserWithEmailAndPassword` and `signInWithEmailAndPassword`.
+- Google sign-in uses Android Credential Manager to obtain a Google ID token, then exchanges it using `FirebaseAuth.signInWithCredential`.
+- FirebaseAuth stores the native session and refreshes ID tokens. SideNote no longer stores an Android refresh token inside WebView local storage.
+- The WebView asks the Android bridge for an ID token when Firestore needs one. The native session marker is preserved after token refresh.
+- If a previously signed-in device is temporarily offline, the app keeps the local account state and notes; cloud sync waits until a token can be refreshed.
+- Firestore paths and note schema remain `users/{uid}/notes/{noteId}`, compatible with the Chrome extension.
+
+## 6. Firestore security rules
+
+The app expects the existing SideNote rules, restricting each user to their own `users/{uid}/...` data:
 
 ```text
 rules_version = '2';
@@ -60,19 +88,35 @@ service cloud.firestore {
 }
 ```
 
-Publish these rules only if they match the schema for your existing SideNote extension. Do not use public/test-mode rules.
+Publish these rules only if they match the schema used by the Chrome extension. Never use public/test-mode rules.
 
-## 5. Test the app
+## 7. Troubleshooting
 
-- Create or sign in with an email/password account.
-- Open the profile panel and check sync status; create a note and confirm it appears in Firestore.
-- Sign in to the same account in the Chrome extension and ensure both apps show the same cloud-synced notes.
-- Try Google sign-in after the Web client ID and Android signing fingerprints are configured.
-- Test offline edits, then reconnect while SideNote is open; local changes should save immediately and queue for sync.
-- In Chrome on Android, use Share → SideNote on a webpage. SideNote opens with that page as its current shared URL; select a note and tap **Link page**. The URL is stored as note metadata, not inserted into note text.
+### Email/password login
 
-## Notes
+- `Email/password sign-in is disabled`: enable Email/Password under Firebase Authentication → Sign-in method.
+- `This Android build isn't authorized for the Firebase project`: check that `google-services.json` belongs to `notebeedubtach` and contains package `com.dubtach.sidenote`; rebuild after updating the secret.
+- `Couldn't reach Firebase`: check network, VPN, DNS filtering, and access to Firebase services.
+- `Email or password is incorrect`: verify the email and password; the app does not store passwords.
 
-- Android's app storage is separate from the Chrome extension's `chrome.storage.local`. To migrate old notes, sign into the same Firebase account in the extension and run Sync now first. Notes that never reached Firebase remain local to the extension until synced.
-- Automatic synchronization runs while the app is open and is retried when network connectivity returns or the app is reopened. This first version does not run an Android background worker when the app is fully closed.
-- Google sign-in requires a device with current Google Play services.
+### Google login
+
+- `Google sign-in is not configured`: add `SIDENOTE_GOOGLE_WEB_CLIENT_ID` as a Web application OAuth client ID and rebuild.
+- Google error code `10` / `DEVELOPER_ERROR`: register the exact SHA-1 from the installed APK in Firebase Android app settings. Make sure the APK was built by the same repository workflow whose fingerprint you registered.
+- `No Google account is available`: add a Google account to the Android device and retry.
+- A canceled account chooser is not an authentication failure; simply retry and select an account.
+- Ensure the Google provider is enabled in Firebase Authentication.
+
+## 8. Install and test
+
+1. Download the `SideNote-Android-debug-APK` artifact from a successful GitHub Actions run.
+2. Install it on the phone. If Android reports a signature conflict, do not uninstall until you have confirmed that local-only notes are synced or exported; uninstalling removes the app's local WebView data.
+3. Test email account creation, sign out, email sign-in, Google sign-in, creating a note, and syncing the same account with the Chrome extension.
+4. Test offline edits, then reconnect and confirm pending changes sync while SideNote is open or after reopening it.
+
+## Data and privacy notes
+
+- The Firebase Web API key in `firebase-config.js` and the Android `google-services.json` identify the Firebase project; they are not administrative credentials. Firestore Security Rules protect user data.
+- Never put a Firebase service-account key, private OAuth secret, or user password in the project or GitHub repository.
+- The Android app stores its local notes separately from Chrome extension storage. Sign into the same Firebase account on both devices to sync cloud-saved notes.
+- Account sign-out does not delete cloud notes or local notes.

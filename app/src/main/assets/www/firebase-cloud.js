@@ -49,27 +49,21 @@
   }
 
   async function createAccount(email, password) {
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth) return window.SideNoteAndroidAuth.createAccount(email.trim(), password);
     return authPost("accounts:signUp", { email: email.trim(), password, returnSecureToken: true });
   }
   async function signInEmail(email, password) {
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth) return window.SideNoteAndroidAuth.signInEmail(email.trim(), password);
     return authPost("accounts:signInWithPassword", { email: email.trim(), password, returnSecureToken: true });
   }
   async function sendPasswordReset(email) {
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth) return window.SideNoteAndroidAuth.sendPasswordReset(email.trim());
     return authPost("accounts:sendOobCode", { requestType: "PASSWORD_RESET", email: email.trim() });
   }
   async function signInGoogle() {
-    // Native Android uses Credential Manager to obtain a Google ID token, then
-    // exchanges that token with Firebase Authentication's REST endpoint.
-    if (window.SIDENOTE_ANDROID && window.__sideNoteGetNativeGoogleIdToken) {
-      const idToken = await window.__sideNoteGetNativeGoogleIdToken();
-      const postBody = new URLSearchParams({ id_token: idToken, providerId: "google.com" }).toString();
-      return authPost("accounts:signInWithIdp", {
-        postBody,
-        requestUri: "http://localhost",
-        returnIdpCredential: true,
-        returnSecureToken: true
-      });
-    }
+    // Android authenticates through FirebaseAuth + Credential Manager. Chrome
+    // continues to use its extension identity token and the Auth REST endpoint.
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth) return window.SideNoteAndroidAuth.signInGoogle();
     const manifest = chrome.runtime.getManifest();
     const clientId = manifest?.oauth2?.client_id || "";
     if (!clientId || clientId.includes("YOUR_GOOGLE_EXTENSION_OAUTH_CLIENT_ID") || !clientId.endsWith(".apps.googleusercontent.com")) {
@@ -88,6 +82,9 @@
     });
   }
   async function refreshSession(refreshToken) {
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth && String(refreshToken).startsWith("native:")) {
+      return window.SideNoteAndroidAuth.getIdToken();
+    }
     const response = await fetch(`${tokenBase}/token?key=${encodeURIComponent(config.apiKey)}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -134,7 +131,9 @@
     return result;
   }
   async function firestoreRequest(path, idToken, options = {}) {
-    const url = `${documentsBase}${path}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(config.apiKey)}`;
+    // Firebase ID tokens authorize Firestore REST requests. Omitting the Web API
+    // key also avoids Android WebView calls being rejected by HTTP-referrer key rules.
+    const url = `${documentsBase}${path}`;
     const response = await fetch(url, {
       ...options,
       headers: { Authorization: `Bearer ${idToken}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) }
@@ -173,7 +172,7 @@
     const chunks = [];
     for (let i = 0; i < writes.length; i += 450) chunks.push(writes.slice(i, i + 450));
     for (const chunk of chunks) {
-      const response = await fetch(`${documentsBase}:commit?key=${encodeURIComponent(config.apiKey)}`, {
+      const response = await fetch(`${documentsBase}:commit`, {
         method: "POST",
         headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ writes: chunk })
@@ -203,5 +202,14 @@
     return result.data;
   }
 
-  window.SideNoteFirebase = Object.freeze({ createAccount, signInEmail, sendPasswordReset, signInGoogle, refreshSession, listNotes, readMeta, writeNotes, writeMeta });
+  async function getNativeSession() {
+    if (!window.SIDENOTE_ANDROID || !window.SideNoteAndroidAuth) return null;
+    return window.SideNoteAndroidAuth.getCurrentSession();
+  }
+  async function signOutNative() {
+    if (window.SIDENOTE_ANDROID && window.SideNoteAndroidAuth) return window.SideNoteAndroidAuth.signOut();
+    return { ok: true };
+  }
+
+  window.SideNoteFirebase = Object.freeze({ createAccount, signInEmail, sendPasswordReset, signInGoogle, refreshSession, getNativeSession, signOutNative, listNotes, readMeta, writeNotes, writeMeta });
 })();
