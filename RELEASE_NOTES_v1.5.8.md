@@ -1,10 +1,10 @@
-# SideNote Android v1.5.8
+# SideNote Android v1.5.8 — Interface cleanup
 
-- Moved Trash, Sort, and View controls into the main header as compact icons.
-- Moved Create to a floating action button in the lower corner.
-- Removed the redundant YOUR NOTES heading.
-- Removed note-layout and compact-card controls from Settings; the View menu remains in the header.
-- Changed Trash close affordance to an X.
-- Routed destructive confirmations through `window.confirm`, displayed by the native Android WebChromeClient AlertDialog.
-- Replaced elaborate overshoot sheet animations with brief fade/translate transitions. Rubber-band scrolling remains enabled.
-- Preserved Firebase authentication, synchronization, Trash lifecycle, undo/redo, and existing note storage.
+- Replaced the unreliable custom in-WebView confirmation flow on Android with the native AlertDialog handled by WebChromeClient. Delete and permanent-delete actions now receive a reliable true/false result.
+- Removed the Note card layout and Compact note cards controls from Settings. Existing layout choices remain available from the header View menu; default remains Two columns. Legacy compact density is normalized to comfortable.
+- Moved Trash, Sort, and View icons into the top header beside Search and Settings.
+- Removed the visible “Your Notes” section heading.
+- Moved Create to a bottom-corner floating action button.
+- Changed Trash navigation to an X close icon.
+- Replaced oversized spring/blur panel transitions with a short, restrained fade-and-slide entrance/exit.
+- Existing notes, Firebase, OAuth, Trash retention, editor, and sync formats are preserved.

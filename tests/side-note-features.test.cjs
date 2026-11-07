@@ -260,12 +260,12 @@ test('Android note layouts offer two columns by default plus single, compact, an
   const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
   const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
   assert.match(js, /noteLayout: "two-column"/);
-  assert.match(js, /settings\.noteLayout = item\.dataset\.viewMode/);
-  assert.doesNotMatch(html, /id="noteLayoutSelect"/);
-  assert.doesNotMatch(html, /id="compactCardsToggle"/);
-  for (const mode of ['two-column', 'single-column', 'compact', 'list']) {
-    assert.match(html, new RegExp(`data-view-mode="${mode}"`));
-  }
+  assert.match(js, /\["two-column", "single-column", "compact", "list"\]/);
+  assert.match(html, /id="noteLayoutSelect"/);
+  assert.match(html, /value="two-column"/);
+  assert.match(html, /value="single-column"/);
+  assert.match(html, /value="compact"/);
+  assert.match(html, /value="list"/);
   assert.match(css, /notes-list\[data-layout="two-column"\][\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /notes-list\[data-layout="compact"\]/);
   assert.match(css, /notes-list\[data-layout="list"\]/);
@@ -302,18 +302,14 @@ test('Android uses consistent dimmed overlays and outside-tap dismissal for edit
 });
 
 test('Android removes redundant footer, simplifies account header, and keeps icon-only Trash action', () => {
-  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
   const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
   assert.match(css, /\.account-trigger-copy small[\s\S]*display: none !important/);
+  assert.match(css, /\.account-avatar[\s\S]*display: none !important/);
   assert.match(css, /\.app-footer[\s\S]*display: none !important/);
-  assert.match(css, /\.trash-icon-button \.trash-count[\s\S]*position: absolute/);
-  assert.doesNotMatch(html, /YOUR NOTES/);
-  assert.match(html, /class="new-note-button floating-create-button" id="newNoteButton"/);
-  assert.match(html, /id="trashButton"/);
-  assert.match(html, /id="sortMenuButton"/);
-  assert.match(html, /id="viewMenuButton"/);
-  assert.match(html, /id="settingsButton"/);
-  assert.match(html, /id="accountButtonLabel"/);
+  assert.match(css, /\.trash-open-button > span:not\(\.trash-count\)[\s\S]*display: none !important/);
+  assert.match(js, /guestBackupReminderShown/);
+  assert.match(js, /Saved on this device · Sign in to back up & sync/);
 });
 
 
@@ -369,23 +365,16 @@ test('opening writing tools on Android preserves editor focus and exposes a visi
   assert.match(css, /writing-toolbar\.toolbar-visible[\s\S]*max-height: 76px/);
   assert.match(css, /writing-toolbar[\s\S]*overflow-x: auto/);
 });
-test('Android destructive confirmations use the native AlertDialog bridge with explicit callbacks', () => {
-  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+test('Android destructive confirmations use the native WebChromeClient dialog reliably', () => {
   const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
   const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
   const java = fs.readFileSync(path.join(root, 'app/src/main/java/com/dubtach/sidenote/MainActivity.java'), 'utf8');
-  assert.match(js, /window\.__sidenoteResolveNativeConfirmation/);
-  assert.match(js, /window\.SideNoteAndroid\.showConfirmation/);
+  assert.match(js, /function confirmAction\([\s\S]*?if \(window\.SIDENOTE_ANDROID\)[\s\S]*?window\.confirm\(prompt\)/);
   assert.match(js, /confirmAction\(`Move/);
   assert.match(js, /confirmAction\(`Permanently delete/);
-  assert.match(java, /public void showConfirmation\(String requestId, String title, String message, String confirmLabel, boolean danger\)/);
-  assert.match(java, /setNegativeButton\(android\.R\.string\.cancel/);
-  assert.match(java, /String positiveText = safe\(confirmLabel\)/);
-  assert.match(java, /setPositiveButton\(positiveText/);
-  assert.match(java, /resolveNativeConfirmation\(requestId, true\)/);
-  assert.match(java, /resolveNativeConfirmation\(requestId, false\)/);
-  assert.match(css, /\.confirm-dialog-backdrop \{ display: none !important; \}/);
-  assert.ok(html.includes('id="deleteButton"'));
+  assert.match(java, /onJsConfirm\([\s\S]*?new AlertDialog\.Builder\(MainActivity\.this\)[\s\S]*?result\.confirm\(\)[\s\S]*?result\.cancel\(\)/);
+  assert.match(java, /setTitle\("SideNote"\)/);
+  assert.match(css, /\.sidenote-android \.confirm-dialog-backdrop \{ display: none !important; \}/);
 });
 
 test('Android scroll regions have a damped rubber-band pull and spring release', () => {
@@ -423,79 +412,49 @@ test('Android editor uses top close action and bottom Delete/Pin actions', () =>
   assert.match(js, /closeEditorButton/);
 });
 
-test('Android overlays have matching enter and exit motion and delayed hide', () => {
+test('Android overlays use restrained basic entrance and exit motion', () => {
   const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
   const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  const finalCss = css.slice(css.lastIndexOf('v1.5.8 — simplified mobile workspace'));
   assert.match(js, /function hideAnimatedPanel\([\s\S]*is-closing[\s\S]*element\.classList\.add\("hidden"\)/);
-  assert.match(js, /mobile-editor-closing/);
-  assert.match(css, /@keyframes sidenote-basic-panel-in/);
-  assert.match(css, /@keyframes sidenote-basic-panel-out/);
-  assert.match(css, /account-popover\.is-closing[\s\S]*sidenote-basic-panel-out/);
-  assert.match(css, /settings-backdrop\.is-closing \.settings-panel[\s\S]*sidenote-basic-panel-out/);
-  assert.match(css, /trash-panel\.is-closing[\s\S]*sidenote-basic-panel-out/);
+  assert.match(js, /mobile-editor-opening/);
+  assert.match(finalCss, /@keyframes sidenote-basic-enter/);
+  assert.match(finalCss, /@keyframes sidenote-basic-exit/);
+  assert.match(finalCss, /translateY\(8px\) scale\(\.995\)/);
+  assert.doesNotMatch(finalCss, /filter: blur/);
 });
 
 
-test('v1.5.8 places Trash, Sort, View, Search, and Settings in the header with a floating Create button', () => {
+
+test('Android header owns Trash, Sort and View; Create is a bottom floating action button', () => {
   const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
   const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
-  const toolbar = html.slice(html.indexOf('<div class="toolbar-actions">'), html.indexOf('<div class="search-box"'));
-  const orderedIds = ['trashButton', 'sortMenuAnchor', 'viewMenuAnchor', 'searchToggle', 'settingsButton'];
-  let previous = -1;
-  for (const id of orderedIds) {
-    const index = toolbar.indexOf(`id="${id}"`);
-    assert.ok(index > previous, `${id} should appear in the expected toolbar order`);
-    previous = index;
-  }
+  const topStart = html.indexOf('<header class="topbar"');
+  const topbar = html.slice(topStart, html.indexOf('</header>', topStart));
+  assert.match(topbar, /id="trashButton"/);
+  assert.match(topbar, /id="sortMenuButton"/);
+  assert.match(topbar, /id="viewMenuButton"/);
+  assert.doesNotMatch(topbar, /id="newNoteButton"/);
+  const fabIndex = html.indexOf('id="newNoteButton"');
+  const mainEnd = html.indexOf('</main>');
+  assert.ok(fabIndex > mainEnd);
   assert.match(html, /class="new-note-button floating-create-button" id="newNoteButton"/);
-  assert.match(css, /\.floating-create-button \{[\s\S]*position: fixed/);
-  assert.match(css, /mobile-editor-active \.floating-create-button[\s\S]*display: none/);
+  assert.match(css, /\.floating-create-button[\s\S]*position: fixed/);
 });
 
-test('v1.5.8 removes unused Settings layout rows while retaining header layout selection', () => {
+test('Android Settings no longer display note layout or compact-card preferences', () => {
   const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
-  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
-  assert.doesNotMatch(html, /for="noteLayoutSelect"|for="compactCardsToggle"/);
-  assert.doesNotMatch(js, /els\.noteLayoutSelect|els\.compactCardsToggle/);
-  for (const mode of ['two-column', 'single-column', 'compact', 'list']) assert.match(html, new RegExp(`data-view-mode="${mode}"`));
+  const settingsStart = html.indexOf('<div class="settings-content">');
+  const settingsEnd = html.indexOf('</div>\n      </section>\n    </div>', settingsStart);
+  const visibleSettings = html.slice(settingsStart, settingsEnd > settingsStart ? settingsEnd : undefined);
+  assert.doesNotMatch(visibleSettings, /Note card layout|Compact note cards/);
+  assert.match(html, /<div class="runtime-controls hidden"/);
+  assert.match(html, /id="noteLayoutSelect"/);
+  assert.match(html, /id="compactCardsToggle"/);
 });
 
-test('Trash close control uses an X rather than a back arrow', () => {
+test('Android home screen removes the Your Notes heading and Trash uses an X close icon', () => {
   const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
-  const trashStart = html.indexOf('id="trashClose"');
-  const trashEnd = html.indexOf('</button>', trashStart);
-  const closeButton = html.slice(trashStart, trashEnd);
-  assert.match(closeButton, /Close Trash/);
-  assert.match(closeButton, /m6 6 12 12M18 6 6 18/);
-  assert.doesNotMatch(closeButton, /m14\.5 5-7 7/);
-});
-
-
-test('v1.5.9 native confirmation bridge resolves cancel, confirm, and dismissal exactly once', () => {
-  const java = fs.readFileSync(path.join(root, 'app/src/main/java/com/dubtach/sidenote/MainActivity.java'), 'utf8');
-  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
-  assert.match(java, /AtomicBoolean completed = new java\.util\.concurrent\.atomic\.AtomicBoolean\(false\)/);
-  assert.match(java, /completed\.compareAndSet\(false, true\)/);
-  assert.match(java, /setOnCancelListener/);
-  assert.match(java, /setOnDismissListener/);
-  assert.match(java, /webView\.evaluateJavascript\(script, null\)/);
-  assert.match(js, /pendingNativeConfirmations = new Map\(\)/);
-  assert.match(js, /pendingNativeConfirmations\.delete\(String\(requestId\)\)/);
-  assert.match(js, /120000/);
-});
-
-test('v1.5.9 closes all Android overlays on the simple transition schedule', () => {
-  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
-  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
-  assert.doesNotMatch(js, /}, 230\);/);
-  assert.match(js, /hideAnimatedPanel\(els\.trashPanel,[\s\S]*?}, 150\)/);
-  assert.match(css, /sidenote-basic-panel-in \.15s ease-out/);
-  assert.match(css, /sidenote-basic-panel-out \.13s ease-in/);
-});
-
-test('v1.5.9 removes the obsolete footer Settings action', () => {
-  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
-  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
-  assert.doesNotMatch(html, /id="settingsFooter"/);
-  assert.doesNotMatch(js, /els\.settingsFooter/);
+  assert.doesNotMatch(html, />YOUR NOTES</);
+  assert.match(html, /id="trashClose"[\s\S]*?title="Close Trash" aria-label="Close Trash"[\s\S]*?m6 6 12 12M18 6 6 18/);
 });

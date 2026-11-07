@@ -1,10 +1,10 @@
-# SideNote Android v1.5.9
+# SideNote Android v1.5.8
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
 ## Included
 
-- User-selectable note layouts: two columns (default), single column, compact grid, and list.
+- User-selectable note layouts from the header View menu: two columns (default), single column, compact grid, and list. The redundant card-layout and compact-card settings have been removed.
 - Smart lists, alphabetic/numbered list continuation, checklists, undo/redo, note appearance controls, and Trash with 30-day recovery.
 - Long-press and drag multi-selection, bulk actions, note menus, and Trash with 30-day recovery. The Android app intentionally has no page-link controls or share-sheet integration; link metadata from Chrome remains preserved in synced notes.
 - Compact, coordinated phone sizing; adaptive keyboard viewport; smooth nested scrolling; haptic/spring feedback; dimmed editor/account/settings sheets with outside-tap dismissal; and double-back-to-exit behavior.
@@ -21,7 +21,7 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.9` (version code `159`)
+- Release: `1.5.8` (version code `158`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
@@ -52,6 +52,6 @@ Trash is now a coordinated dimmed overlay; the writing toolbar visibility/touch 
 Trash now behaves as a shared dimmed bottom-sheet overlay with outside-tap dismissal. The writing toolbar has a reliable visible state and horizontal scrolling on small screens. Delete now sits beside Pin in the editor bottom row, with an X close action in the header. Editor, Account, Settings, and Trash have coordinated entrance and exit motion. See `RELEASE_NOTES_v1.5.7.md`.
 
 
-## Latest release — v1.5.9
+## Latest update — v1.5.8
 
-Destructive and account confirmations now use an explicit native Android `AlertDialog` bridge, with separate Cancel/confirm callbacks, dismissal handling, a danger-colored destructive action, and a timeout fallback. This avoids relying on a WebView custom dialog or a WebChrome `window.confirm` callback for the app's primary destructive actions. Modal close timers are aligned to the restrained 130–150ms transition system. The obsolete footer Settings action has been removed. See `RELEASE_NOTES_v1.5.9.md`.
+The Android workspace is simplified: Trash, Sort, and View live in the top header; Create is a bottom-right floating action button; the visible “Your Notes” heading and duplicate layout preferences have been removed; Trash uses an X close control; and native Android confirmation dialogs handle destructive actions reliably. Editor, Account, Settings, and Trash use restrained basic fade/slide transitions. Existing View menu layout choices remain available, with two columns as the default. See `RELEASE_NOTES_v1.5.8.md`.

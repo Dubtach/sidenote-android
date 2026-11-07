@@ -39,6 +39,7 @@
     searchToggle: $("searchToggle"),
     searchClose: $("searchClose"),
     settingsButton: $("settingsButton"),
+    settingsFooter: $("settingsFooter"),
     accountButton: $("accountButton"),
     accountAvatar: $("accountAvatar"),
     profileAvatarChoices: $("profileAvatarChoices"),
@@ -77,10 +78,12 @@
     autoSyncToggle: $("autoSyncToggle"),
     themeSelect: $("themeSelect"),
     editorFontSizeSelect: $("editorFontSizeSelect"),
+    noteLayoutSelect: $("noteLayoutSelect"),
     autoOpenLinkedToggle: $("autoOpenLinkedToggle"),
     confirmDeleteToggle: $("confirmDeleteToggle"),
     confirmUnlinkToggle: $("confirmUnlinkToggle"),
     autoHideToolbarToggle: $("autoHideToolbarToggle"),
+    compactCardsToggle: $("compactCardsToggle"),
     focusNewNoteToggle: $("focusNewNoteToggle"),
     sortSelect: $("sortSelect"),
     sortMenuButton: $("sortMenuButton"),
@@ -180,8 +183,6 @@
   let mobileOverlayOwner = "";
   let guestBackupReminderShown = false;
   let guestNoteCreatedThisSession = false;
-  let nativeConfirmSequence = 0;
-  const pendingNativeConfirmations = new Map();
   let firebaseInitializationComplete = false;
   const panelCloseTimers = new WeakMap();
   let editorCloseTimer = null;
@@ -196,10 +197,10 @@
     element.classList.remove("is-opening");
     void element.offsetWidth;
     element.classList.add("is-opening");
-    window.setTimeout(() => element.classList.remove("is-opening"), 160);
+    window.setTimeout(() => element.classList.remove("is-opening"), 320);
   }
 
-  function hideAnimatedPanel(element, onHidden, duration = 150) {
+  function hideAnimatedPanel(element, onHidden, duration = 230) {
     if (!element || element.classList.contains("hidden")) { onHidden?.(); return; }
     const oldTimer = panelCloseTimers.get(element);
     if (oldTimer) clearTimeout(oldTimer);
@@ -295,7 +296,7 @@
       els.mobileOverlayBackdrop.setAttribute("aria-hidden", "true");
       window.setTimeout(() => {
         if (!mobileOverlayOwner) els.mobileOverlayBackdrop.classList.add("hidden");
-      }, 150);
+      }, 230);
     }
   }
 
@@ -306,9 +307,10 @@
       if (editorCloseTimer) clearTimeout(editorCloseTimer);
       editorCloseTimer = null;
       els.appShell.classList.remove("mobile-editor-closing");
-      els.appShell.classList.add("mobile-editor-active");
+      els.appShell.classList.add("mobile-editor-opening", "mobile-editor-active");
       els.appShell.classList.remove("mobile-list-active");
       setMobileOverlay("editor", true);
+      requestAnimationFrame(() => requestAnimationFrame(() => els.appShell.classList.remove("mobile-editor-opening")));
       return;
     }
     if (els.appShell.classList.contains("mobile-editor-active")) {
@@ -319,7 +321,7 @@
       editorCloseTimer = window.setTimeout(() => {
         els.appShell.classList.remove("mobile-editor-active", "mobile-editor-closing");
         editorCloseTimer = null;
-      }, 150);
+      }, 230);
     } else {
       els.appShell.classList.remove("mobile-editor-active", "mobile-editor-closing");
       els.appShell.classList.add("mobile-list-active");
@@ -345,45 +347,122 @@
     toastTimer = setTimeout(() => els.toast.classList.remove("visible"), 1700);
   }
 
-  window.__sidenoteResolveNativeConfirmation = (requestId, confirmed) => {
-    const resolve = pendingNativeConfirmations.get(String(requestId));
-    if (!resolve) return;
-    pendingNativeConfirmations.delete(String(requestId));
+  function finishConfirmDialog(confirmed) {
+    if (!confirmResolver) return;
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    clearTimeout(confirmCloseTimer);
+    els.confirmDialogBackdrop.classList.remove("visible");
+    els.confirmDialogBackdrop.classList.add("is-closing");
+    els.confirmDialogBackdrop.setAttribute("aria-hidden", "true");
+    confirmCloseTimer = setTimeout(() => {
+      els.confirmDialogBackdrop.classList.add("hidden");
+      els.confirmDialogBackdrop.classList.remove("is-closing");
+    }, 190);
     resolve(Boolean(confirmed));
-  };
+  }
 
   function confirmAction(message, options = {}) {
-    const title = String(options.title || "Confirm");
-    const body = String(message || "Are you sure?");
-    const confirmLabel = String(options.confirmLabel || "Continue");
-    if (window.SIDENOTE_ANDROID && window.SideNoteAndroid?.showConfirmation) {
-      const requestId = `confirm-${Date.now()}-${++nativeConfirmSequence}`;
-      return new Promise((resolve) => {
-        const timeout = window.setTimeout(() => {
-          if (!pendingNativeConfirmations.has(requestId)) return;
-          pendingNativeConfirmations.delete(requestId);
-          resolve(false);
-          showToast("Confirmation timed out. Please try again.");
-        }, 120000);
-        pendingNativeConfirmations.set(requestId, (confirmed) => {
-          window.clearTimeout(timeout);
-          resolve(Boolean(confirmed));
-        });
-        try {
-          window.SideNoteAndroid.showConfirmation(
-            requestId, title, body, confirmLabel, Boolean(options.danger)
-          );
-        } catch (error) {
-          window.clearTimeout(timeout);
-          pendingNativeConfirmations.delete(requestId);
-          console.error("SideNote: native confirmation could not be opened", error);
-          resolve(false);
-          showToast("Couldn't open confirmation. Please try again.");
-        }
-      });
+    const prompt = String(message || options.title || "Are you sure?");
+    // Android's WebChromeClient maps window.confirm() to a native AlertDialog.
+    // Use it for destructive actions so the confirmation promise always resolves reliably.
+    if (window.SIDENOTE_ANDROID) {
+      try { return Promise.resolve(Boolean(window.confirm(prompt))); }
+      catch (error) {
+        console.error("SideNote: native confirmation failed", error);
+        showToast("Couldn't open confirmation. Please try again.");
+        return Promise.resolve(false);
+      }
     }
-    const prompt = title ? `${title}\n\n${body}` : body;
-    return Promise.resolve(window.confirm(prompt));
+    return Promise.resolve(Boolean(window.confirm(prompt)));
+  }
+
+  els.confirmDialogCancel.addEventListener("click", () => finishConfirmDialog(false));
+  els.confirmDialogAccept.addEventListener("click", () => finishConfirmDialog(true));
+  els.confirmDialogBackdrop.addEventListener("click", (event) => {
+    if (event.target === els.confirmDialogBackdrop) finishConfirmDialog(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && confirmResolver) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      finishConfirmDialog(false);
+    }
+  }, true);
+
+  function maybeShowGuestBackupReminder() {
+    if (!window.SIDENOTE_ANDROID || !firebaseInitializationComplete || !guestNoteCreatedThisSession ||
+        firebaseSession?.uid || guestBackupReminderShown) return;
+    guestBackupReminderShown = true;
+    window.setTimeout(() => showToast("Saved on this device · Sign in to back up & sync"), 420);
+  }
+
+  function metadataText(note) {
+    const date = new Date(note.updatedAt || note.createdAt || Date.now());
+    const body = safeText(note.body);
+    const words = body.trim().split(/\s+/).filter(Boolean).length;
+    const characters = body.length;
+    const editedDate = date.toLocaleDateString([], { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+    const editedTime = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return `Last edited: ${editedDate} at ${editedTime}\nWords: ${words}\nCharacters: ${characters}`;
+  }
+
+  function wordCount(note) {
+    return safeText(note.body).trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  function sortNotes() {
+    const edited = (note) => Number(note.updatedAt || note.createdAt || 0);
+    const created = (note) => Number(note.createdAt || 0);
+    notes.sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      const byEdited = edited(b) - edited(a);
+      switch (settings.sortMode) {
+        case "oldest": return edited(a) - edited(b) || created(a) - created(b);
+        case "title-asc": return noteTitle(a).localeCompare(noteTitle(b), undefined, { sensitivity: "base" }) || byEdited;
+        case "title-desc": return noteTitle(b).localeCompare(noteTitle(a), undefined, { sensitivity: "base" }) || byEdited;
+        case "words-desc": return wordCount(b) - wordCount(a) || byEdited;
+        case "words-asc": return wordCount(a) - wordCount(b) || byEdited;
+        case "newest":
+        default: return byEdited || created(b) - created(a);
+      }
+    });
+  }
+
+  function noteTitle(note) {
+    return safeText(note.title).trim() || "Untitled note";
+  }
+
+  function notePreview(note) {
+    const content = safeText(note.body).replace(/\s+/g, " ").trim();
+    return content || "No additional text";
+  }
+
+  const SORT_LABELS = Object.freeze({
+    newest: "Newest first", oldest: "Oldest first", "title-asc": "Title A–Z",
+    "title-desc": "Title Z–A", "words-desc": "Most words", "words-asc": "Fewest words"
+  });
+  const VIEW_LABELS = Object.freeze({
+    "two-column": "Two columns", "single-column": "Single column", compact: "Compact grid", list: "List"
+  });
+
+  function closeNotesControlMenus() {
+    for (const [button, menu] of [[els.sortMenuButton, els.sortMenu], [els.viewMenuButton, els.viewMenu]]) {
+      menu.classList.add("hidden");
+      button.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function toggleNotesControlMenu(kind) {
+    const isSort = kind === "sort";
+    const button = isSort ? els.sortMenuButton : els.viewMenuButton;
+    const menu = isSort ? els.sortMenu : els.viewMenu;
+    const shouldOpen = menu.classList.contains("hidden");
+    closeNotesControlMenus();
+    if (shouldOpen) {
+      menu.classList.remove("hidden");
+      button.setAttribute("aria-expanded", "true");
+    }
   }
 
   function updateNotesControlMenus() {
@@ -423,6 +502,7 @@
     const item = event.target.closest("[data-view-mode]");
     if (!item) return;
     settings.noteLayout = item.dataset.viewMode;
+    if (els.noteLayoutSelect) els.noteLayoutSelect.value = settings.noteLayout;
     closeNotesControlMenus();
     applySettingsToUI();
     renderList();
@@ -439,7 +519,6 @@
     sortNotes();
     const query = els.search.value.trim().toLowerCase();
     const liveNotes = activeNotes();
-    els.appShell.classList.toggle("has-live-notes", liveNotes.length > 0);
     const filtered = liveNotes.filter((note) => `${note.title || ""}\n${note.body || ""}`.toLowerCase().includes(query));
     els.notesCount.textContent = String(liveNotes.length);
     els.trashCount.textContent = String(notes.length - liveNotes.length);
@@ -799,7 +878,7 @@
     if (window.SIDENOTE_ANDROID) setMobileOverlay("trash", false);
     hideAnimatedPanel(els.trashPanel, () => {
       if (restoreFocus) els.trashButton.focus?.({ preventScroll: true });
-    }, 150);
+    }, 230);
   }
 
   async function restoreTrashNote(id) {
@@ -1993,7 +2072,7 @@
     }
     hideAnimatedPanel(els.accountPopover, () => {
       if (restoreFocus) els.accountButton.focus?.({ preventScroll: true });
-    }, 150);
+    }, 230);
   }
 
   function openSettings() {
@@ -2008,7 +2087,7 @@
     els.settingsButton.setAttribute("aria-expanded", "false");
     hideAnimatedPanel(els.settingsBackdrop, () => {
       if (restoreFocus) els.settingsButton.focus?.({ preventScroll: true });
-    }, 150);
+    }, 230);
   }
 
   async function openShortcutSettings() {
@@ -2030,11 +2109,13 @@
     document.documentElement.dataset.noteDensity = "comfortable";
     els.themeSelect.value = settings.theme;
     els.editorFontSizeSelect.value = settings.editorFontSize;
+    if (els.noteLayoutSelect) els.noteLayoutSelect.value = settings.noteLayout;
     if (els.notesList) els.notesList.dataset.layout = settings.noteLayout;
     els.autoOpenLinkedToggle.checked = settings.autoOpenLinked;
     els.confirmDeleteToggle.checked = settings.confirmDelete;
     els.confirmUnlinkToggle.checked = settings.confirmUnlink;
     els.autoHideToolbarToggle.checked = settings.autoHideToolbar;
+    if (els.compactCardsToggle) els.compactCardsToggle.checked = false;
     els.focusNewNoteToggle.checked = settings.focusNewNote;
     els.sortSelect.value = settings.sortMode;
     updateNotesControlMenus();
@@ -2295,7 +2376,7 @@
     normalized.confirmDelete = normalized.confirmDelete !== false;
     normalized.confirmUnlink = normalized.confirmUnlink === true;
     normalized.autoHideToolbar = normalized.autoHideToolbar !== false;
-    normalized.compactCards = normalized.compactCards === true;
+    normalized.compactCards = false;
     normalized.focusNewNote = normalized.focusNewNote !== false;
     if (!PROFILE_AVATARS.some((item) => item.id === normalized.profileAvatar)) normalized.profileAvatar = "initial";
     return normalized;
@@ -3242,6 +3323,7 @@
     }
   });
   els.settingsButton.addEventListener("click", openSettings);
+  els.settingsFooter.addEventListener("click", openSettings);
   els.settingsClose.addEventListener("click", () => closeSettings());
   els.settingsBackdrop.addEventListener("click", (event) => {
     if (event.target === els.settingsBackdrop) closeSettings();
@@ -3257,7 +3339,12 @@
     applySettingsToUI();
     void saveSettings();
   });
-
+  if (els.noteLayoutSelect) els.noteLayoutSelect.addEventListener("change", () => {
+    settings.noteLayout = ["two-column", "single-column", "compact", "list"].includes(els.noteLayoutSelect.value)
+      ? els.noteLayoutSelect.value : "two-column";
+    applySettingsToUI();
+    void saveSettings();
+  });
   els.autoOpenLinkedToggle.addEventListener("change", () => {
     settings.autoOpenLinked = els.autoOpenLinkedToggle.checked;
     void saveSettings();
@@ -3280,7 +3367,6 @@
     if (settings.autoHideToolbar) hideWritingToolbar();
     void saveSettings();
   });
-
   els.focusNewNoteToggle.addEventListener("change", () => {
     settings.focusNewNote = els.focusNewNoteToggle.checked;
     void saveSettings();

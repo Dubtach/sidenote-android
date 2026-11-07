@@ -1,4 +1,4 @@
-SideNote Android v1.5.9
+SideNote Android v1.5.8
 
 Build without Android Studio using GitHub Actions.
 Required repository secrets:
@@ -7,4 +7,4 @@ Required repository secrets:
 
 The workflow validates the Android Firebase JSON and matching Web OAuth client before compiling the APK.
 See ANDROID_SETUP.md for OAuth SHA-1/SHA-256 registration and Google sign-in troubleshooting.
-See RELEASE_NOTES_v1.5.4.md for mobile layouts, overlay panels, and Android-only page-link removal.
+See RELEASE_NOTES_v1.5.8.md for the simplified Android layout, header controls, Create FAB, Trash close control, and native confirmations.
