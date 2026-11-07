@@ -215,5 +215,10 @@ test('GitHub build validates Firebase Android JSON and the Web OAuth client befo
   assert.match(workflow, /notebeedubtach/);
   assert.match(docs, /Android Credential Manager/);
   assert.match(docs, /SHA-1 and SHA-256/);
-  assert.equal(fs.existsSync(path.join(root, 'app/google-services.json')), false);
+
+  // GitHub Actions creates this file from the encrypted secret before running
+  // tests. It is therefore expected to exist during CI; the security property
+  // we need to assert is that Git ignores it so it cannot be committed.
+  const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+  assert.match(gitignore, /^app\/google-services\.json\s*$/m);
 });

@@ -1,4 +1,4 @@
-# SideNote Android v1.5.0 — Firebase and Google sign-in setup
+# SideNote Android v1.5.1 — Firebase and Google sign-in setup
 
 Package name: `com.dubtach.sidenote`  
 Firebase project: `notebeedubtach`
@@ -64,7 +64,7 @@ In Firebase Console → Authentication → Sign-in method, enable:
 
 Email/password login does not depend on Google OAuth or SHA fingerprints, but it does require a valid `google-services.json` in the build so the native Firebase SDK can initialize.
 
-## 5. How Android authentication works in v1.5.0
+## 5. How Android authentication works in v1.5.1
 
 - Email/password registration and sign-in use `FirebaseAuth.createUserWithEmailAndPassword` and `signInWithEmailAndPassword`.
 - Google sign-in uses Android Credential Manager to obtain a Google ID token, then exchanges it using `FirebaseAuth.signInWithCredential`.

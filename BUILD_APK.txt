@@ -1,4 +1,4 @@
-SideNote Android v1.5.0
+SideNote Android v1.5.1
 
 You do not need Android Studio. Use the GitHub Actions workflow:
 

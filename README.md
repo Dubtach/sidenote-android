@@ -1,4 +1,4 @@
-# SideNote Android v1.5.0
+# SideNote Android v1.5.1
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
@@ -21,7 +21,7 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.0` (version code `107`)
+- Release: `1.5.1` (version code `108`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
