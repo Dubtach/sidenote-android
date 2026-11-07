@@ -1330,3 +1330,112 @@
 .sidenote-android .settings-backdrop:not(.hidden).is-closing .settings-panel { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
 .sidenote-android .trash-panel:not(.hidden).is-closing { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
 .sidenote-android .app-shell.mobile-editor-closing .editor-wrap { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+
+
+/* v1.5.8 — phone-first header, floating create button, native confirms, restrained motion */
+.sidenote-android .section-heading { display: none !important; }
+.sidenote-android .legacy-notes-state { display: none !important; }
+.sidenote-android .topbar { justify-content: space-between; gap: 8px; }
+.sidenote-android .toolbar-actions { display: flex; align-items: center; gap: 4px; }
+.sidenote-android .toolbar-actions .toolbar-button,
+.sidenote-android .toolbar-actions .notes-menu-button,
+.sidenote-android .toolbar-actions .trash-icon-button {
+  width: 36px; min-width: 36px; height: 36px; min-height: 36px; border-radius: 11px;
+}
+.sidenote-android .toolbar-actions .notes-menu-anchor { position: relative; flex: 0 0 auto; }
+.sidenote-android .trash-icon-button { position: relative; color: var(--muted); }
+.sidenote-android .trash-icon-button svg { width: 18px; height: 18px; }
+.sidenote-android .trash-icon-button .trash-count {
+  position: absolute; top: -4px; right: -4px; min-width: 15px; height: 15px; padding: 0 3px;
+  display: inline-grid; place-items: center; border: 1px solid var(--surface); border-radius: 99px;
+  background: var(--accent); color: #fff; font-size: 9px; line-height: 1;
+}
+.sidenote-android .floating-create-button {
+  position: fixed; z-index: 24; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom));
+  display: grid; place-items: center; width: 56px; height: 56px; min-width: 56px; min-height: 56px;
+  border: 0; border-radius: 19px; background: var(--accent); color: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 32%, transparent);
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.sidenote-android .floating-create-button svg { width: 25px; height: 25px; }
+.sidenote-android .floating-create-button:active { transform: scale(.94); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 28%, transparent); }
+.sidenote-android .app-shell.mobile-editor-active .floating-create-button,
+.sidenote-android .app-shell.mobile-editor-closing .floating-create-button { display: none !important; }
+.sidenote-android .notes-section { padding: 10px 13px max(12px, env(safe-area-inset-bottom)); min-height: 0; }
+.sidenote-android .notes-list { padding-bottom: 84px; }
+.sidenote-android .notes-menu-button { background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%); }
+.sidenote-android .notes-menu-button[aria-expanded="true"] { background: var(--accent-soft); }
+.sidenote-android .trash-panel-header { align-items: center; }
+.sidenote-android .trash-close { width: 40px; height: 40px; border-radius: 12px; }
+.sidenote-android .trash-close svg { width: 19px; height: 19px; }
+.sidenote-android label[for="noteLayoutSelect"],
+.sidenote-android label[for="compactCardsToggle"] { display: none !important; }
+.sidenote-android .note-card { -webkit-tap-highlight-color: transparent; }
+
+/* Native Android confirmation dialogs are driven by the explicit SideNoteAndroid bridge. */
+.sidenote-android .confirm-dialog-backdrop { display: none !important; }
+
+/* Keep motion simple and consistent: short fades and small vertical movement, no overshoot. */
+@keyframes sidenote-basic-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sidenote-basic-panel-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(4px); }
+}
+.sidenote-android .trash-panel.is-opening,
+.sidenote-android .account-popover.is-opening,
+.sidenote-android .settings-backdrop.is-opening .settings-panel,
+.sidenote-android .app-shell.mobile-editor-active .editor-wrap {
+  animation: sidenote-basic-panel-in .15s ease-out both !important;
+}
+.sidenote-android .trash-panel.is-closing,
+.sidenote-android .account-popover.is-closing,
+.sidenote-android .settings-backdrop.is-closing .settings-panel,
+.sidenote-android .app-shell.mobile-editor-closing .editor-wrap {
+  animation: sidenote-basic-panel-out .13s ease-in both !important;
+}
+.sidenote-android .mobile-overlay-backdrop,
+.sidenote-android #mobileOverlayBackdrop { transition: opacity .15s ease !important; }
+@media (max-width: 370px) {
+  .sidenote-android .toolbar-actions { gap: 2px; }
+  .sidenote-android .toolbar-actions .toolbar-button,
+  .sidenote-android .toolbar-actions .notes-menu-button,
+  .sidenote-android .toolbar-actions .trash-icon-button { width: 33px; min-width: 33px; height: 34px; min-height: 34px; }
+  .sidenote-android .floating-create-button { width: 52px; height: 52px; min-width: 52px; min-height: 52px; right: 15px; }
+}
+
+.sidenote-android .app-shell:not(.has-live-notes) .floating-create-button { display: none !important; }
+
+
+/* v1.5.9 — restrained motion timing and reliable modal interaction */
+.sidenote-android .trash-panel.is-opening,
+.sidenote-android .account-popover.is-opening,
+.sidenote-android .settings-backdrop.is-opening .settings-panel,
+.sidenote-android .app-shell.mobile-editor-active .editor-wrap {
+  animation: sidenote-basic-panel-in .15s ease-out both !important;
+}
+.sidenote-android .trash-panel.is-closing,
+.sidenote-android .account-popover.is-closing,
+.sidenote-android .settings-backdrop.is-closing .settings-panel,
+.sidenote-android .app-shell.mobile-editor-closing .editor-wrap {
+  animation: sidenote-basic-panel-out .13s ease-in both !important;
+}
+.sidenote-android #mobileOverlayBackdrop { transition: opacity .15s ease !important; }
+.sidenote-android .floating-create-button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.sidenote-android .floating-create-button:focus-visible,
+.sidenote-android .trash-close:focus-visible,
+.sidenote-android .delete-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .sidenote-android .trash-panel.is-opening,
+  .sidenote-android .account-popover.is-opening,
+  .sidenote-android .settings-backdrop.is-opening .settings-panel,
+  .sidenote-android .app-shell.mobile-editor-active .editor-wrap,
+  .sidenote-android .trash-panel.is-closing,
+  .sidenote-android .account-popover.is-closing,
+  .sidenote-android .settings-backdrop.is-closing .settings-panel,
+  .sidenote-android .app-shell.mobile-editor-closing .editor-wrap { animation: none !important; }
+  .sidenote-android #mobileOverlayBackdrop { transition: none !important; }
+}

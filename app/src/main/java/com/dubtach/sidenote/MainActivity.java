@@ -543,7 +543,43 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    private void resolveNativeConfirmation(String requestId, boolean confirmed) {
+        if (webView == null) return;
+        String script = "window.__sidenoteResolveNativeConfirmation && window.__sidenoteResolveNativeConfirmation("
+                + JSONObject.quote(safe(requestId)) + "," + (confirmed ? "true" : "false") + ");";
+        webView.evaluateJavascript(script, null);
+    }
+
     public final class SideNoteBridge {
+        @JavascriptInterface
+        public void showConfirmation(String requestId, String title, String message, String confirmLabel, boolean danger) {
+            runOnUiThread(() -> {
+                final java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
+                String positiveText = safe(confirmLabel);
+                if (positiveText.isEmpty()) positiveText = getString(android.R.string.ok);
+                AlertDialog dialog = new AlertDialog.Builder(MainActivity.this)
+                        .setTitle(safe(title).isEmpty() ? "Confirm" : safe(title))
+                        .setMessage(safe(message).isEmpty() ? "Are you sure?" : safe(message))
+                        .setNegativeButton(android.R.string.cancel, (dialogInterface, which) -> {
+                            if (completed.compareAndSet(false, true)) resolveNativeConfirmation(requestId, false);
+                        })
+                        .setPositiveButton(positiveText, (dialogInterface, which) -> {
+                            if (completed.compareAndSet(false, true)) resolveNativeConfirmation(requestId, true);
+                        })
+                        .create();
+                dialog.setOnCancelListener(dialogInterface -> {
+                    if (completed.compareAndSet(false, true)) resolveNativeConfirmation(requestId, false);
+                });
+                dialog.setOnDismissListener(dialogInterface -> {
+                    if (completed.compareAndSet(false, true)) resolveNativeConfirmation(requestId, false);
+                });
+                dialog.show();
+                if (danger && dialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(190, 67, 82));
+                }
+            });
+        }
+
         @JavascriptInterface
         public void firebaseSignInEmail(String requestId, String email, String password) {
             runOnUiThread(() -> {

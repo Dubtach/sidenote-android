@@ -1,4 +1,4 @@
-SideNote Android v1.5.4
+SideNote Android v1.5.9
 
 Build without Android Studio using GitHub Actions.
 Required repository secrets:

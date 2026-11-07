@@ -1,4 +1,4 @@
-# SideNote Android v1.5.7
+# SideNote Android v1.5.9
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
@@ -21,7 +21,7 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.7` (version code `157`)
+- Release: `1.5.9` (version code `159`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
@@ -50,3 +50,8 @@ Trash is now a coordinated dimmed overlay; the writing toolbar visibility/touch 
 ## v1.5.7 overlay and editor polish
 
 Trash now behaves as a shared dimmed bottom-sheet overlay with outside-tap dismissal. The writing toolbar has a reliable visible state and horizontal scrolling on small screens. Delete now sits beside Pin in the editor bottom row, with an X close action in the header. Editor, Account, Settings, and Trash have coordinated entrance and exit motion. See `RELEASE_NOTES_v1.5.7.md`.
+
+
+## Latest release — v1.5.9
+
+Destructive and account confirmations now use an explicit native Android `AlertDialog` bridge, with separate Cancel/confirm callbacks, dismissal handling, a danger-colored destructive action, and a timeout fallback. This avoids relying on a WebView custom dialog or a WebChrome `window.confirm` callback for the app's primary destructive actions. Modal close timers are aligned to the restrained 130–150ms transition system. The obsolete footer Settings action has been removed. See `RELEASE_NOTES_v1.5.9.md`.
