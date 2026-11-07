@@ -1,9 +1,9 @@
-SideNote Android v1.5.1
+SideNote Android v1.5.3
 
-You do not need Android Studio. Use the GitHub Actions workflow:
+Build without Android Studio using GitHub Actions.
+Required repository secrets:
+- SIDENOTE_GOOGLE_SERVICES_JSON_BASE64
+- SIDENOTE_GOOGLE_WEB_CLIENT_ID
 
-1. Add SIDENOTE_GOOGLE_SERVICES_JSON_BASE64 and SIDENOTE_GOOGLE_WEB_CLIENT_ID as repository Actions secrets.
-2. Push the project to main/master or manually run Actions > Build SideNote Android APK.
-3. Download the SideNote-Android-debug-APK artifact from the successful run.
-
-See ANDROID_SETUP.md and BUILD_WITH_GITHUB_ACTIONS.md for full instructions. The workflow prints the APK signing SHA-1/SHA-256; add those to the Firebase Android app before expecting Google sign-in to work.
+The workflow validates that the Web OAuth client ID matches the Web client entry in google-services.json before compiling the APK.
+See ANDROID_SETUP.md for OAuth SHA-1/SHA-256 registration and Google sign-in troubleshooting.

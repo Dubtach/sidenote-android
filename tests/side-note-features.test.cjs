@@ -189,9 +189,16 @@ test('native Android Firebase authentication uses FirebaseAuth and Credential Ma
   assert.match(java, /signInWithEmailAndPassword\(/);
   assert.match(java, /createUserWithEmailAndPassword\(/);
   assert.match(java, /GoogleAuthProvider\.getCredential\(idToken, null\)/);
+  assert.match(java, /GetSignInWithGoogleOption\.Builder\(AppConfig\.getGoogleWebClientId\(this\)\)/);
+  assert.match(java, /requestGoogleAccountPickerFallback\(requestId\)/);
+  assert.match(java, /GetGoogleIdOption\.Builder\(\)/);
+  assert.match(java, /setFilterByAuthorizedAccounts\(false\)/);
+  assert.match(java, /googleFirebaseErrorMessage\(error/);
+  assert.match(java, /Firebase rejected Google's sign-in token/);
   assert.match(java, /credentialManager\.getCredentialAsync\(/);
   assert.match(java, /getIdToken\(false\)/);
   assert.match(gradle, /com\.google\.firebase:firebase-auth/);
+  assert.match(gradle, /googleid:1\.2\.1/);
 });
 
 test('mobile refinement uses larger touch controls and responsive phone layouts', () => {
@@ -206,6 +213,27 @@ test('mobile refinement uses larger touch controls and responsive phone layouts'
   assert.match(js, /window\.SIDENOTE_ANDROID \? 430 : 520/);
 });
 
+test('v1.5.3 mobile layout is balanced and selection actions stay on one compact row', () => {
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  const lastPolish = css.slice(css.lastIndexOf('v1.5.3 — balanced mobile proportions'));
+  assert.match(lastPolish, /--mobile-hit: 44px/);
+  assert.match(lastPolish, /flex-wrap: nowrap !important/);
+  assert.match(lastPolish, /overflow-x: auto/);
+  assert.match(lastPolish, /note-card-title \{ font-size: 14\.5px/);
+  assert.match(lastPolish, /font-size: 16px; line-height: 1\.72;/);
+  assert.match(lastPolish, /settings-header h2 \{ font-size: 20px/);
+});
+
+test('Android Back closes app surfaces before double-back exit', () => {
+  const java = fs.readFileSync(path.join(root, 'app/src/main/java/com/dubtach/sidenote/MainActivity.java'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  assert.match(java, /EXIT_CONFIRM_WINDOW_MS = 2200L/);
+  assert.match(java, /Press back again to exit/);
+  assert.match(java, /OnBackInvokedDispatcher\.PRIORITY_DEFAULT/);
+  assert.match(java, /data-bulk-action=\\\"cancel\\\"/);
+  assert.match(js, /event\.key === "Escape" && !els\.bulkActionsBar\.classList\.contains\("hidden"\)/);
+});
+
 test('GitHub build validates Firebase Android JSON and the Web OAuth client before producing an APK', () => {
   const workflow = fs.readFileSync(path.join(root, '.github/workflows/build-apk.yml'), 'utf8');
   const docs = fs.readFileSync(path.join(root, 'ANDROID_SETUP.md'), 'utf8');
@@ -213,7 +241,10 @@ test('GitHub build validates Firebase Android JSON and the Web OAuth client befo
   assert.match(workflow, /SIDENOTE_GOOGLE_WEB_CLIENT_ID/);
   assert.match(workflow, /com\.dubtach\.sidenote/);
   assert.match(workflow, /notebeedubtach/);
-  assert.match(docs, /Android Credential Manager/);
+  assert.match(workflow, /does not match a Web OAuth client inside google-services\.json/);
+  assert.match(workflow, /embedded_web_ids/);
+  assert.match(docs, /Credential Manager/);
+  assert.match(docs, /GetSignInWithGoogleOption/);
   assert.match(docs, /SHA-1 and SHA-256/);
 
   // GitHub Actions creates this file from the encrypted secret before running

@@ -51,6 +51,7 @@ jobs:
           echo "$SIDENOTE_GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
           python - <<'PYJSON'
           import json
+          import os
           from pathlib import Path
           data = json.loads(Path('app/google-services.json').read_text())
           android_clients = [c for c in data.get('client', []) if c.get('client_info', {}).get('android_client_info', {}).get('package_name') == 'com.dubtach.sidenote']
@@ -61,7 +62,19 @@ jobs:
           selected = android_clients[0]
           if not selected.get('client_info', {}).get('mobilesdk_app_id') or not selected.get('api_key'):
               raise SystemExit('google-services.json is missing the Android Firebase app ID or API key. Download it again from Firebase Project settings.')
-          print('Firebase Android config validated for notebeedubtach / com.dubtach.sidenote.')
+          web_client_id = os.environ.get('SIDENOTE_GOOGLE_WEB_CLIENT_ID', '').strip()
+          embedded_web_ids = set()
+          for oauth in selected.get('oauth_client', []):
+              if str(oauth.get('client_type')) == '3' and oauth.get('client_id'):
+                  embedded_web_ids.add(oauth['client_id'].strip())
+          for oauth in selected.get('services', {}).get('appinvite_service', {}).get('other_platform_oauth_client', []):
+              if str(oauth.get('client_type')) == '3' and oauth.get('client_id'):
+                  embedded_web_ids.add(oauth['client_id'].strip())
+          if not web_client_id:
+              raise SystemExit('Missing SIDENOTE_GOOGLE_WEB_CLIENT_ID. Set the Web application OAuth client ID in GitHub Actions secrets.')
+          if web_client_id not in embedded_web_ids:
+              raise SystemExit('SIDENOTE_GOOGLE_WEB_CLIENT_ID does not match a Web OAuth client inside google-services.json. In Firebase, enable Google sign-in, register this Android app SHA-1/SHA-256, download a fresh google-services.json, then update both GitHub secrets.')
+          print('Firebase Android config and matching Web OAuth client validated for notebeedubtach / com.dubtach.sidenote.')
           PYJSON
           if [ -z "$SIDENOTE_GOOGLE_WEB_CLIENT_ID" ]; then
             echo "::error::Missing SIDENOTE_GOOGLE_WEB_CLIENT_ID. Add the OAuth client ID with type Web application to GitHub Actions secrets; Google sign-in will not work without it. See ANDROID_SETUP.md."
@@ -71,7 +84,7 @@ jobs:
             echo "::error::SIDENOTE_GOOGLE_WEB_CLIENT_ID is not a valid Google OAuth client ID. Use the Web application client, not the Android or Chrome Extension client."
             exit 1
           fi
-          echo "Firebase Android config and Web OAuth client ID validated."
+          echo "Firebase Android config and matching Web OAuth client ID validated."
 
       - name: Restore stable debug signing key
         uses: actions/cache@v4

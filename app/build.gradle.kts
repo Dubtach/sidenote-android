@@ -20,8 +20,8 @@ android {
         applicationId = "com.dubtach.sidenote"
         minSdk = 24
         targetSdk = 36
-        versionCode = 108
-        versionName = "1.5.1"
+        versionCode = 110
+        versionName = "1.5.3"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$escapedGoogleWebClientId\"")
     }
 
@@ -49,5 +49,5 @@ dependencies {
     implementation("androidx.webkit:webkit:1.13.0")
     implementation("androidx.credentials:credentials:1.5.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
 }

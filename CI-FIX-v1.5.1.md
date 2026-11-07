@@ -14,3 +14,10 @@ The test now checks the actual security requirement: `app/google-services.json` 
 
 - Android version: 1.5.1
 - Version code: 108
+
+
+## v1.5.2 follow-up
+
+- Google sign-in now uses Credential Manager's explicit `GetSignInWithGoogleOption` for the visible Google button, with `googleid:1.2.1`.
+- The build checks that `SIDENOTE_GOOGLE_WEB_CLIENT_ID` exactly matches a Web OAuth client included in the selected Android client's `google-services.json`.
+- Added compact mobile sizing, a single-line horizontally scrollable selection toolbar, and double-back-to-exit after dismissing app surfaces.

@@ -3029,6 +3029,10 @@
       event.preventDefault();
       toggleNoteStylePanel(false);
     }
+    if (event.key === "Escape" && !els.bulkActionsBar.classList.contains("hidden")) {
+      event.preventDefault();
+      els.bulkActionsBar.querySelector('[data-bulk-action="cancel"]')?.click();
+    }
   });
   window.addEventListener("scroll", closeNoteActionMenu, true);
 

@@ -54,7 +54,7 @@ The workflow caches its debug keystore so consecutive builds can keep the same s
 
 ## Authentication behavior
 
-SideNote v1.5.1 uses the native Firebase Android Auth SDK. Email/password uses FirebaseAuth directly. Google uses Android Credential Manager and the Web application OAuth client ID. See `ANDROID_SETUP.md` for detailed Firebase setup and error diagnostics.
+SideNote v1.5.3 uses the native Firebase Android Auth SDK. Email/password uses FirebaseAuth directly. The explicit Google button uses Credential Manager GetSignInWithGoogleOption and the Web application OAuth client ID, with a GetGoogleIdOption account-picker fallback when the direct provider has no credential. The workflow verifies that the secret Web client ID matches the client embedded in google-services.json. See `ANDROID_SETUP.md` for detailed Firebase setup and error diagnostics.
 
 ## Important
 

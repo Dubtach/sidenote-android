@@ -1,4 +1,4 @@
-# SideNote Android v1.5.1 — Firebase and Google sign-in setup
+# SideNote Android v1.5.3 — Firebase and Google sign-in setup
 
 Package name: `com.dubtach.sidenote`  
 Firebase project: `notebeedubtach`
@@ -43,7 +43,7 @@ Copy the entire output into the same GitHub secret. This is Firebase client conf
 
 Do **not** use the Chrome Extension OAuth client ID or the Android OAuth client ID here. Credential Manager needs the Web application client ID as its server client ID.
 
-Both secrets are required by the build workflow. The workflow intentionally stops with a specific error if either is missing or invalid, rather than producing an APK with a broken login button.
+Both secrets are required by the build workflow. The workflow checks that the Web client ID secret is present in the selected Android app client inside `google-services.json`; if the IDs do not match, it stops before building rather than producing an APK with a broken Google button. After enabling Google sign-in or adding SHA fingerprints, always download a fresh `google-services.json` and update its Base64 GitHub secret.
 
 ## 3. First build and Android signing fingerprints
 
@@ -64,10 +64,10 @@ In Firebase Console → Authentication → Sign-in method, enable:
 
 Email/password login does not depend on Google OAuth or SHA fingerprints, but it does require a valid `google-services.json` in the build so the native Firebase SDK can initialize.
 
-## 5. How Android authentication works in v1.5.1
+## 5. How Android authentication works in v1.5.3
 
 - Email/password registration and sign-in use `FirebaseAuth.createUserWithEmailAndPassword` and `signInWithEmailAndPassword`.
-- Google sign-in uses Android Credential Manager to obtain a Google ID token, then exchanges it using `FirebaseAuth.signInWithCredential`.
+- The explicit **Continue with Google** button first uses Credential Manager `GetSignInWithGoogleOption` (Google Identity library 1.2.1). If the direct-button provider returns no credential, SideNote falls back to the standard Credential Manager account picker using `GetGoogleIdOption` with authorized-account filtering disabled. Both paths obtain a Google ID token and exchange it using `FirebaseAuth.signInWithCredential`.
 - FirebaseAuth stores the native session and refreshes ID tokens. SideNote no longer stores an Android refresh token inside WebView local storage.
 - The WebView asks the Android bridge for an ID token when Firestore needs one. The native session marker is preserved after token refresh.
 - If a previously signed-in device is temporarily offline, the app keeps the local account state and notes; cloud sync waits until a token can be refreshed.
@@ -101,10 +101,10 @@ Publish these rules only if they match the schema used by the Chrome extension. 
 
 ### Google login
 
-- `Google sign-in is not configured`: add `SIDENOTE_GOOGLE_WEB_CLIENT_ID` as a Web application OAuth client ID and rebuild.
-- Google error code `10` / `DEVELOPER_ERROR`: register the exact SHA-1 from the installed APK in Firebase Android app settings. Make sure the APK was built by the same repository workflow whose fingerprint you registered.
+- `Google sign-in is not configured`: add `SIDENOTE_GOOGLE_WEB_CLIENT_ID` as a Web application OAuth client ID and rebuild. It must match a Web OAuth client entry inside the current `google-services.json`.
+- Google error code `10` / `DEVELOPER_ERROR`: register the exact SHA-1 and SHA-256 from the installed APK in Firebase Android app settings. Download a fresh `google-services.json`, update the Base64 secret, and rebuild with the same stable GitHub Actions signing key.
 - `No Google account is available`: add a Google account to the Android device and retry.
-- A canceled account chooser is not an authentication failure; simply retry and select an account.
+- A canceled Google sign-in sheet is not an authentication failure; simply retry and select an account. The button flow uses `GetSignInWithGoogleOption`; the older `GetGoogleIdOption` is intended for the Credential Manager account-picker bottom sheet.
 - Ensure the Google provider is enabled in Firebase Authentication.
 
 ## 8. Install and test

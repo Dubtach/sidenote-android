@@ -11,11 +11,15 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.CancellationSignal;
+import android.os.Build;
+import android.os.SystemClock;
 import android.util.Patterns;
 import android.view.View;
 import android.view.HapticFeedbackConstants;
 import android.view.Window;
 import android.view.WindowManager;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
@@ -37,6 +41,7 @@ import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
 import androidx.credentials.ClearCredentialStateRequest;
 import androidx.credentials.exceptions.ClearCredentialException;
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import androidx.webkit.WebViewAssetLoader;
 
@@ -64,11 +69,20 @@ public class MainActivity extends Activity {
     private String firebaseInitError = "";
     private JSONObject sharedPage;
     private boolean pageLoaded = false;
+    private OnBackInvokedCallback systemBackCallback;
+    private long lastBackPressedAtMs = 0L;
+    private boolean backCheckPending = false;
+    private static final long EXIT_CONFIRM_WINDOW_MS = 2200L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         configureWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            systemBackCallback = this::handleSystemBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback);
+        }
         handleIncomingIntent(getIntent(), false);
         credentialManager = CredentialManager.create(this);
         assetLoader = new WebViewAssetLoader.Builder()
@@ -403,7 +417,7 @@ public class MainActivity extends Activity {
                     .addOnCompleteListener(this, task -> {
                         if (!task.isSuccessful()) {
                             Exception error = task.getException();
-                            sendNativeFirebaseResult(requestId, null, firebaseErrorMessage(error == null ? new Exception("Google sign-in failed.") : error));
+                            sendNativeFirebaseResult(requestId, null, googleFirebaseErrorMessage(error == null ? new Exception("Google sign-in failed.") : error));
                             return;
                         }
                         AuthResult result = task.getResult();
@@ -414,20 +428,33 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String googleFirebaseErrorMessage(Exception error) {
+        String code = error instanceof FirebaseAuthException
+                ? ((FirebaseAuthException) error).getErrorCode().toUpperCase(Locale.ROOT) : "";
+        if (code.contains("INVALID_CREDENTIAL") || code.contains("INVALID_IDP_RESPONSE")) {
+            return "Firebase rejected Google's sign-in token. Check that SIDENOTE_GOOGLE_WEB_CLIENT_ID matches the Web client in google-services.json, Google is enabled in Firebase Authentication, and this APK's SHA-1/SHA-256 are registered.";
+        }
+        if (code.contains("OPERATION_NOT_ALLOWED")) {
+            return "Google sign-in is disabled in Firebase. Enable Google under Firebase Console → Authentication → Sign-in method.";
+        }
+        if (code.contains("ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL")) {
+            return "This email already has a SideNote account using another sign-in method. Sign in with that method first, then link providers from your account settings.";
+        }
+        return firebaseErrorMessage(error);
+    }
+
     private void requestGoogleFirebaseSignIn(String requestId) {
         if (!AppConfig.isGoogleSignInConfigured(this)) {
             sendNativeFirebaseResult(requestId, null,
-                    "Google sign-in is not configured. Add the Firebase Android google-services.json and a Web application OAuth client ID, register this APK's SHA-1 in Firebase, then rebuild.");
+                    "Google sign-in is not configured. Add the Web application OAuth client ID to GitHub Actions, update google-services.json after registering this app's SHA-1/SHA-256 in Firebase, then rebuild.");
             return;
         }
         try {
-            GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
-                    .setServerClientId(AppConfig.getGoogleWebClientId(this))
-                    .setFilterByAuthorizedAccounts(false)
-                    .setAutoSelectEnabled(false)
-                    .build();
+            // Primary path for the visible "Continue with Google" button.
+            GetSignInWithGoogleOption googleButtonOption =
+                    new GetSignInWithGoogleOption.Builder(AppConfig.getGoogleWebClientId(this)).build();
             GetCredentialRequest request = new GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
+                    .addCredentialOption(googleButtonOption)
                     .build();
             credentialManager.getCredentialAsync(
                     this,
@@ -437,43 +464,108 @@ public class MainActivity extends Activity {
                     new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                         @Override
                         public void onResult(GetCredentialResponse result) {
-                            try {
-                                Credential credential = result.getCredential();
-                                if (!(credential instanceof CustomCredential)) {
-                                    sendNativeFirebaseResult(requestId, null, "Choose a Google account to continue.");
-                                    return;
-                                }
-                                CustomCredential custom = (CustomCredential) credential;
-                                if (!GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(custom.getType())) {
-                                    sendNativeFirebaseResult(requestId, null, "Google did not return a supported sign-in credential.");
-                                    return;
-                                }
-                                GoogleIdTokenCredential google = GoogleIdTokenCredential.createFrom(custom.getData());
-                                signInWithGoogleIdToken(requestId, google.getIdToken());
-                            } catch (Exception error) {
-                                sendNativeFirebaseResult(requestId, null, "Couldn't read the Google sign-in response: " + safe(error.getMessage()));
-                            }
+                            handleGoogleCredentialResult(requestId, result);
                         }
 
                         @Override
                         public void onError(GetCredentialException error) {
                             String type = error.getClass().getSimpleName();
-                            String message;
                             if (type.contains("NoCredential")) {
-                                message = "No Google account is available for SideNote. Add a Google account to this device, then try again.";
-                            } else if (type.contains("Cancellation")) {
-                                message = "Google sign-in was cancelled.";
-                            } else if (type.contains("GetCredentialProviderConfiguration")) {
-                                message = "Google sign-in isn't configured correctly. Check that SIDENOTE_GOOGLE_WEB_CLIENT_ID is a Web application OAuth client ID.";
-                            } else {
-                                message = "Google sign-in couldn't start: " + safe(error.getMessage()) + ". Check the Web OAuth client ID, Android package name, and this APK's SHA-1 in Firebase.";
+                                // Some provider/device combinations do not surface the direct-button
+                                // credential. Fall back to the standard account picker so users can
+                                // select any Google account already present on the device.
+                                requestGoogleAccountPickerFallback(requestId);
+                                return;
                             }
-                            sendNativeFirebaseResult(requestId, null, message);
+                            sendNativeFirebaseResult(requestId, null, googleCredentialErrorMessage(error));
                         }
                     });
         } catch (Exception error) {
-            sendNativeFirebaseResult(requestId, null, "Google sign-in couldn't start: " + safe(error.getMessage()));
+            String details = safe(error.getMessage());
+            sendNativeFirebaseResult(requestId, null,
+                    "Google sign-in couldn't start: " + (details.isEmpty() ? error.getClass().getSimpleName() : details)
+                    + ". Verify the Web OAuth client ID and this APK's Firebase SHA fingerprints.");
         }
+    }
+
+    private void requestGoogleAccountPickerFallback(String requestId) {
+        try {
+            GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(AppConfig.getGoogleWebClientId(this))
+                    .setAutoSelectEnabled(false)
+                    .build();
+            GetCredentialRequest fallbackRequest = new GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build();
+            credentialManager.getCredentialAsync(
+                    this,
+                    fallbackRequest,
+                    new CancellationSignal(),
+                    getMainExecutor(),
+                    new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                        @Override
+                        public void onResult(GetCredentialResponse result) {
+                            handleGoogleCredentialResult(requestId, result);
+                        }
+
+                        @Override
+                        public void onError(GetCredentialException error) {
+                            sendNativeFirebaseResult(requestId, null, googleCredentialErrorMessage(error));
+                        }
+                    });
+        } catch (Exception error) {
+            String details = safe(error.getMessage());
+            sendNativeFirebaseResult(requestId, null,
+                    "Google account picker couldn't start: " + (details.isEmpty() ? error.getClass().getSimpleName() : details));
+        }
+    }
+
+    private void handleGoogleCredentialResult(String requestId, GetCredentialResponse result) {
+        try {
+            Credential credential = result.getCredential();
+            if (!(credential instanceof CustomCredential)) {
+                sendNativeFirebaseResult(requestId, null,
+                        "Google didn't return a sign-in credential. Please try again.");
+                return;
+            }
+            CustomCredential custom = (CustomCredential) credential;
+            if (!GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(custom.getType())) {
+                sendNativeFirebaseResult(requestId, null,
+                        "Google returned an unsupported credential type. Update Google Play services and try again.");
+                return;
+            }
+            GoogleIdTokenCredential google = GoogleIdTokenCredential.createFrom(custom.getData());
+            String idToken = google.getIdToken();
+            if (idToken == null || idToken.trim().isEmpty()) {
+                sendNativeFirebaseResult(requestId, null,
+                        "Google didn't return an ID token. Check your Web OAuth client ID and Firebase Android app configuration.");
+                return;
+            }
+            signInWithGoogleIdToken(requestId, idToken);
+        } catch (Exception error) {
+            sendNativeFirebaseResult(requestId, null,
+                    "Couldn't read the Google sign-in response: " + safe(error.getMessage()));
+        }
+    }
+
+    private String googleCredentialErrorMessage(GetCredentialException error) {
+        String type = error.getClass().getSimpleName();
+        String details = safe(error.getMessage());
+        if (type.contains("Cancellation")) {
+            return "Google sign-in was cancelled.";
+        }
+        if (type.contains("NoCredential")) {
+            return "No Google account is available. Add a Google account to this device, then try again.";
+        }
+        if (type.contains("ProviderConfiguration") || type.contains("Unsupported")) {
+            return "Google sign-in isn't available on this device. Update Google Play services and try again.";
+        }
+        if (details.toUpperCase(Locale.ROOT).contains("DEVELOPER_ERROR") || details.contains("10:")) {
+            return "Google rejected this APK's identity. Register this build's SHA-1 and SHA-256 in Firebase for com.dubtach.sidenote, download a fresh google-services.json, and rebuild.";
+        }
+        return "Google sign-in couldn't start (" + type + "): " + details
+                + ". Check the Web OAuth client ID, Android package name, and SHA fingerprints for this APK.";
     }
 
     private void sendFirebaseResetResult(String requestId, Exception error) {
@@ -486,16 +578,48 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void handleSystemBack() {
+        if (webView == null) {
+            finish();
+            return;
+        }
+        if (backCheckPending) return;
+        backCheckPending = true;
+        String backScript = "(() => {"
+                + "const overlay = document.querySelector('#settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open, #noteActionMenu:not(.hidden), #trashPanel:not(.hidden), #noteStylePanel:not(.hidden)');"
+                + "if (overlay) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; }"
+                + "const bulk = document.querySelector('#bulkActionsBar:not(.hidden)');"
+                + "if (bulk) { bulk.querySelector('[data-bulk-action=\"cancel\"]')?.click(); return 'handled'; }"
+                + "const back = document.getElementById('mobileBackButton');"
+                + "if (document.querySelector('#appShell.mobile-editor-active') && back) { back.click(); return 'handled'; }"
+                + "return 'exit'; })()";
+        webView.evaluateJavascript(backScript, value -> {
+            backCheckPending = false;
+            if (!"\"exit\"".equals(value)) {
+                lastBackPressedAtMs = 0L;
+                return;
+            }
+            long now = SystemClock.elapsedRealtime();
+            if (lastBackPressedAtMs > 0L && now - lastBackPressedAtMs <= EXIT_CONFIRM_WINDOW_MS) {
+                finish();
+                return;
+            }
+            lastBackPressedAtMs = now;
+            Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show();
+        });
+    }
+
     @Override
     public void onBackPressed() {
-        if (webView == null) { super.onBackPressed(); return; }
-        webView.evaluateJavascript(
-                "(() => { const overlay = document.querySelector('#settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open, #noteActionMenu:not(.hidden), #trashPanel:not(.hidden), #noteStylePanel:not(.hidden)'); if (overlay) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; } const back = document.getElementById('mobileBackButton'); if (document.querySelector('#appShell.mobile-editor-active') && back) { back.click(); return 'handled'; } return 'exit'; })()",
-                value -> { if ("\"exit\"".equals(value)) finish(); });
+        handleSystemBack();
     }
 
     @Override
     protected void onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && systemBackCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBackCallback);
+            systemBackCallback = null;
+        }
         if (webView != null) {
             webView.removeJavascriptInterface("SideNoteAndroid");
             webView.stopLoading();
