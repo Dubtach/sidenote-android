@@ -500,7 +500,7 @@ public class MainActivity extends Activity {
         if (backCheckPending) return;
         backCheckPending = true;
         String backScript = "(() => {"
-                + "const overlay = document.querySelector('#settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open, #noteActionMenu:not(.hidden), #trashPanel:not(.hidden), #noteStylePanel:not(.hidden)');"
+                + "const overlay = document.querySelector('#confirmDialogBackdrop:not(.hidden), #settingsBackdrop:not(.hidden), #accountPopover:not(.hidden), #topbar.search-open, #noteActionMenu:not(.hidden), #trashPanel:not(.hidden), #noteStylePanel:not(.hidden), #sortMenu:not(.hidden), #viewMenu:not(.hidden)');"
                 + "if (overlay) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; }"
                 + "const bulk = document.querySelector('#bulkActionsBar:not(.hidden)');"
                 + "if (bulk) { bulk.querySelector('[data-bulk-action=\"cancel\"]')?.click(); return 'handled'; }"

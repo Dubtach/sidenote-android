@@ -319,3 +319,69 @@ test('MainActivity defines the null-safe string helper used by Firebase auth', (
   assert.match(java, /safe\(email\)/);
   assert.match(java, /safe\(user\.getEmail\(\)\)/);
 });
+
+test('untouched empty drafts are not persisted and are removed without affecting written notes', () => {
+  const sandbox = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(webDir, 'note-drafts.js'), 'utf8'), sandbox);
+  const drafts = sandbox.window.SideNoteDrafts;
+  const blank = { id: 'draft', title: '   ', body: '', _emptyDraft: true };
+  const written = { id: 'written', title: 'Keep', body: 'Text' };
+  assert.equal(drafts.isUntouchedEmptyDraft(blank), true);
+  assert.deepEqual(Array.from(drafts.persistedNotes([blank, written]), (note) => note.id), ['written']);
+  assert.equal(drafts.markWritten(blank, 'First thought'), true);
+  assert.equal(drafts.isUntouchedEmptyDraft(blank), false);
+  assert.deepEqual(Array.from(drafts.persistedNotes([blank, written]), (note) => note.id), ['draft', 'written']);
+});
+
+test('new note drafts are transient until the user writes and are discarded with a toast on close', () => {
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  assert.match(js, /_emptyDraft:\s*true/);
+  assert.match(js, /function discardUntouchedDraft\(/);
+  assert.match(js, /showToast\("Empty note discarded"\)/);
+  assert.match(js, /if \(!NoteDrafts\.isUntouchedEmptyDraft\(note\)\) scheduleSave\(\)/);
+  assert.match(html, /<script src="note-drafts\.js"><\/script>/);
+});
+
+test('Android notes header has icon menus for sorting and switching card layouts', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  for (const id of ['sortMenuButton', 'sortMenu', 'viewMenuButton', 'viewMenu']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(js, /data-sort-mode/);
+  assert.match(js, /data-view-mode/);
+  assert.match(js, /settings\.noteLayout = item\.dataset\.viewMode/);
+  assert.match(css, /\.sidenote-android \.sort-select \{ display: none !important; \}/);
+  assert.match(css, /\.sidenote-android \.notes-menu-button/);
+});
+
+test('opening writing tools on Android preserves the editor focus and keyboard', () => {
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  assert.match(js, /writingToolbarToggle\.addEventListener\("pointerdown"/);
+  assert.match(js, /event\.preventDefault\(\);\s*toolbarTouchHandled = true;\s*toggleWritingToolbar\(\)/);
+  assert.match(js, /if \(toolbarTouchHandled\) \{ toolbarTouchHandled = false; return; \}/);
+});
+
+test('Android confirmations use the branded SideNote dialog instead of native confirm', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(html, /id="confirmDialogBackdrop"/);
+  assert.match(html, /role="alertdialog"/);
+  assert.match(js, /function confirmAction\(/);
+  assert.match(js, /if \(!window\.SIDENOTE_ANDROID[\s\S]*?window\.confirm/);
+  assert.match(js, /confirmAction\(`Move/);
+  assert.match(js, /confirmAction\(`Permanently delete/);
+  assert.match(css, /\.sidenote-android \.confirm-dialog-backdrop/);
+  assert.match(css, /\.sidenote-android \.confirm-dialog-backdrop\.is-closing/);
+});
+
+test('Android scroll regions have a damped rubber-band pull and spring release', () => {
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(js, /function installRubberBand\(/);
+  assert.match(js, /Math\.pow\(Math\.abs\(delta\), 0\.72\)/);
+  assert.match(js, /rubber-band-releasing/);
+  assert.match(css, /rubber-band-target\.rubber-band-releasing \{ transition: transform \.48s cubic-bezier/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+});

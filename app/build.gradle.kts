@@ -20,8 +20,8 @@ android {
         applicationId = "com.dubtach.sidenote"
         minSdk = 24
         targetSdk = 36
-        versionCode = 155
-        versionName = "1.5.5"
+        versionCode = 156
+        versionName = "1.5.6"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$escapedGoogleWebClientId\"")
     }
 

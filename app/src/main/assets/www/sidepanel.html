@@ -107,6 +107,30 @@
             <option value="words-desc">Most words</option>
             <option value="words-asc">Fewest words</option>
           </select>
+          <div class="notes-menu-anchor" id="sortMenuAnchor">
+            <button class="notes-menu-button" id="sortMenuButton" type="button" aria-label="Sort notes" title="Sort notes" aria-haspopup="menu" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M4.5 9 8 5l3.5 4M16 19V5m-3.5 4L16 5l3.5 4"/></svg>
+            </button>
+            <div class="notes-control-menu hidden" id="sortMenu" role="menu" aria-label="Sort notes">
+              <button type="button" role="menuitemradio" data-sort-mode="newest">Newest first</button>
+              <button type="button" role="menuitemradio" data-sort-mode="oldest">Oldest first</button>
+              <button type="button" role="menuitemradio" data-sort-mode="title-asc">Title A–Z</button>
+              <button type="button" role="menuitemradio" data-sort-mode="title-desc">Title Z–A</button>
+              <button type="button" role="menuitemradio" data-sort-mode="words-desc">Most words</button>
+              <button type="button" role="menuitemradio" data-sort-mode="words-asc">Fewest words</button>
+            </div>
+          </div>
+          <div class="notes-menu-anchor" id="viewMenuAnchor">
+            <button class="notes-menu-button" id="viewMenuButton" type="button" aria-label="Change note layout" title="Change note layout" aria-haspopup="menu" aria-expanded="false">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="7" height="7" rx="1.4"/><rect x="13.5" y="4" width="7" height="7" rx="1.4"/><rect x="3.5" y="14" width="7" height="7" rx="1.4"/><rect x="13.5" y="14" width="7" height="7" rx="1.4"/></svg>
+            </button>
+            <div class="notes-control-menu notes-view-menu hidden" id="viewMenu" role="menu" aria-label="Notes layout">
+              <button type="button" role="menuitemradio" data-view-mode="two-column">Two columns</button>
+              <button type="button" role="menuitemradio" data-view-mode="single-column">Single column</button>
+              <button type="button" role="menuitemradio" data-view-mode="compact">Compact grid</button>
+              <button type="button" role="menuitemradio" data-view-mode="list">List</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="bulk-actions hidden" id="bulkActionsBar" aria-live="polite">
@@ -358,10 +382,22 @@ No pressure to make it perfect." aria-label="Note content" spellcheck="true"></t
         </div>
       </section>
     </div>
+    <div class="confirm-dialog-backdrop hidden" id="confirmDialogBackdrop" aria-hidden="true">
+      <section class="confirm-dialog" id="confirmDialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogMessage" tabindex="-1">
+        <div class="confirm-dialog-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3.5 21 20H3L12 3.5Z"/><path d="M12 9v5M12 17h.01"/></svg></div>
+        <h2 id="confirmDialogTitle">Are you sure?</h2>
+        <p id="confirmDialogMessage"></p>
+        <div class="confirm-dialog-actions">
+          <button type="button" class="confirm-dialog-cancel" id="confirmDialogCancel">Cancel</button>
+          <button type="button" class="confirm-dialog-accept" id="confirmDialogAccept">Confirm</button>
+        </div>
+      </section>
+    </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
   <script src="firebase-config.js"></script>
   <script src="note-lifecycle.js"></script>
+  <script src="note-drafts.js"></script>
   <script src="android-compat.js"></script>
   <script src="firebase-cloud.js"></script>
   <script src="sidepanel.js"></script>

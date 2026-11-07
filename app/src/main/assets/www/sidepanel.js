@@ -10,7 +10,9 @@
   const FIREBASE_OWNER_KEY = "sidenote_firebase_local_owner_v1";
   const FIREBASE_SNAPSHOT_PREFIX = "sidenote_firebase_account_snapshot_v1_";
   const NoteLifecycle = window.SideNoteLifecycle;
+  const NoteDrafts = window.SideNoteDrafts;
   if (!NoteLifecycle) throw new Error("SideNote note lifecycle helpers are missing.");
+  if (!NoteDrafts) throw new Error("SideNote note draft helpers are missing.");
   const TRASH_RETENTION_MS = NoteLifecycle.RETENTION_MS;
   const DRIVE_BACKUP_NAME = "sidenote-backup.json";
   const FirebaseAPI = window.SideNoteFirebase;
@@ -84,6 +86,16 @@
     compactCardsToggle: $("compactCardsToggle"),
     focusNewNoteToggle: $("focusNewNoteToggle"),
     sortSelect: $("sortSelect"),
+    sortMenuButton: $("sortMenuButton"),
+    sortMenu: $("sortMenu"),
+    viewMenuButton: $("viewMenuButton"),
+    viewMenu: $("viewMenu"),
+    confirmDialogBackdrop: $("confirmDialogBackdrop"),
+    confirmDialog: $("confirmDialog"),
+    confirmDialogTitle: $("confirmDialogTitle"),
+    confirmDialogMessage: $("confirmDialogMessage"),
+    confirmDialogCancel: $("confirmDialogCancel"),
+    confirmDialogAccept: $("confirmDialogAccept"),
     editorWrap: $("editorWrap"),
     appShell: $("appShell"),
     notesSection: $("notesSection"),
@@ -285,6 +297,53 @@
     toastTimer = setTimeout(() => els.toast.classList.remove("visible"), 1700);
   }
 
+  function finishConfirmDialog(confirmed) {
+    if (!confirmResolver) return;
+    const resolve = confirmResolver;
+    confirmResolver = null;
+    clearTimeout(confirmCloseTimer);
+    els.confirmDialogBackdrop.classList.remove("visible");
+    els.confirmDialogBackdrop.classList.add("is-closing");
+    els.confirmDialogBackdrop.setAttribute("aria-hidden", "true");
+    confirmCloseTimer = setTimeout(() => {
+      els.confirmDialogBackdrop.classList.add("hidden");
+      els.confirmDialogBackdrop.classList.remove("is-closing");
+    }, 190);
+    resolve(Boolean(confirmed));
+  }
+
+  function confirmAction(message, options = {}) {
+    if (!window.SIDENOTE_ANDROID || !els.confirmDialogBackdrop) {
+      return Promise.resolve(window.confirm(String(message || "Are you sure?")));
+    }
+    if (confirmResolver) finishConfirmDialog(false);
+    return new Promise((resolve) => {
+      confirmResolver = resolve;
+      els.confirmDialogTitle.textContent = options.title || "Are you sure?";
+      els.confirmDialogMessage.textContent = String(message || "");
+      els.confirmDialogAccept.textContent = options.confirmLabel || "Continue";
+      els.confirmDialogAccept.classList.toggle("danger", options.danger === true);
+      clearTimeout(confirmCloseTimer);
+      els.confirmDialogBackdrop.classList.remove("hidden", "is-closing");
+      els.confirmDialogBackdrop.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => els.confirmDialogBackdrop.classList.add("visible"));
+      setTimeout(() => els.confirmDialogCancel.focus({ preventScroll: true }), 40);
+    });
+  }
+
+  els.confirmDialogCancel.addEventListener("click", () => finishConfirmDialog(false));
+  els.confirmDialogAccept.addEventListener("click", () => finishConfirmDialog(true));
+  els.confirmDialogBackdrop.addEventListener("click", (event) => {
+    if (event.target === els.confirmDialogBackdrop) finishConfirmDialog(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && confirmResolver) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      finishConfirmDialog(false);
+    }
+  }, true);
+
   function maybeShowGuestBackupReminder() {
     if (!window.SIDENOTE_ANDROID || !firebaseInitializationComplete || !guestNoteCreatedThisSession ||
         firebaseSession?.uid || guestBackupReminderShown) return;
@@ -333,7 +392,84 @@
     return content || "No additional text";
   }
 
+  const SORT_LABELS = Object.freeze({
+    newest: "Newest first", oldest: "Oldest first", "title-asc": "Title A–Z",
+    "title-desc": "Title Z–A", "words-desc": "Most words", "words-asc": "Fewest words"
+  });
+  const VIEW_LABELS = Object.freeze({
+    "two-column": "Two columns", "single-column": "Single column", compact: "Compact grid", list: "List"
+  });
+
+  function closeNotesControlMenus() {
+    for (const [button, menu] of [[els.sortMenuButton, els.sortMenu], [els.viewMenuButton, els.viewMenu]]) {
+      menu.classList.add("hidden");
+      button.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function toggleNotesControlMenu(kind) {
+    const isSort = kind === "sort";
+    const button = isSort ? els.sortMenuButton : els.viewMenuButton;
+    const menu = isSort ? els.sortMenu : els.viewMenu;
+    const shouldOpen = menu.classList.contains("hidden");
+    closeNotesControlMenus();
+    if (shouldOpen) {
+      menu.classList.remove("hidden");
+      button.setAttribute("aria-expanded", "true");
+    }
+  }
+
+  function updateNotesControlMenus() {
+    if (els.sortMenuButton) {
+      els.sortMenuButton.title = `Sort notes: ${SORT_LABELS[settings.sortMode] || SORT_LABELS.newest}`;
+      els.sortMenuButton.setAttribute("aria-label", els.sortMenuButton.title);
+    }
+    if (els.viewMenuButton) {
+      els.viewMenuButton.title = `Note layout: ${VIEW_LABELS[settings.noteLayout] || VIEW_LABELS["two-column"]}`;
+      els.viewMenuButton.setAttribute("aria-label", els.viewMenuButton.title);
+    }
+    for (const button of els.sortMenu.querySelectorAll("[data-sort-mode]")) {
+      const active = button.dataset.sortMode === settings.sortMode;
+      button.setAttribute("aria-checked", String(active));
+      button.classList.toggle("is-active", active);
+    }
+    for (const button of els.viewMenu.querySelectorAll("[data-view-mode]")) {
+      const active = button.dataset.viewMode === settings.noteLayout;
+      button.setAttribute("aria-checked", String(active));
+      button.classList.toggle("is-active", active);
+    }
+  }
+
+  els.sortMenuButton.addEventListener("click", () => toggleNotesControlMenu("sort"));
+  els.viewMenuButton.addEventListener("click", () => toggleNotesControlMenu("view"));
+  els.sortMenu.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-sort-mode]");
+    if (!item) return;
+    settings.sortMode = item.dataset.sortMode;
+    els.sortSelect.value = settings.sortMode;
+    closeNotesControlMenus();
+    renderList();
+    void saveSettings();
+    showToast(`Sorted by ${SORT_LABELS[settings.sortMode]}`);
+  });
+  els.viewMenu.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-view-mode]");
+    if (!item) return;
+    settings.noteLayout = item.dataset.viewMode;
+    els.noteLayoutSelect.value = settings.noteLayout;
+    closeNotesControlMenus();
+    applySettingsToUI();
+    renderList();
+    void saveSettings();
+    showToast(`${VIEW_LABELS[settings.noteLayout]} view`);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const inside = event.target.closest("#sortMenuAnchor, #viewMenuAnchor");
+    if (!inside) closeNotesControlMenus();
+  });
+
   function renderList() {
+    updateNotesControlMenus();
     sortNotes();
     const query = els.search.value.trim().toLowerCase();
     const liveNotes = activeNotes();
@@ -579,7 +715,7 @@
   async function deleteNotesByIds(ids) {
     const selected = notes.filter((note) => ids.includes(note.id) && !isNoteTrashed(note));
     if (!selected.length) return;
-    if (settings.confirmDelete && !window.confirm(`Move ${selected.length} note${selected.length === 1 ? "" : "s"} to Trash? You can restore them for 30 days.`)) return;
+    if (settings.confirmDelete && !(await confirmAction(`Move ${selected.length} note${selected.length === 1 ? "" : "s"} to Trash? You can restore them for 30 days.`, { title: "Move to Trash", confirmLabel: "Move to Trash", danger: true }))) return;
     flushSave();
     const trashedAt = Date.now();
     for (const note of selected) NoteLifecycle.moveToTrash(note, trashedAt);
@@ -598,7 +734,7 @@
     if (selected.length < 2) { showToast("Select at least two notes to merge"); return; }
     const previewTitles = selected.slice(0, 3).map(noteTitle).join(", ");
     const extra = selected.length > 3 ? ` and ${selected.length - 3} more` : "";
-    if (!window.confirm(`Merge ${selected.length} notes into one new note and remove the originals?\n\n${previewTitles}${extra}`)) return;
+    if (!(await confirmAction(`Merge ${selected.length} notes into one new note and move the originals to Trash?\n\n${previewTitles}${extra}`, { title: "Merge notes", confirmLabel: "Merge notes" }))) return;
     flushSave();
     const now = Date.now();
     const mergedBody = selected.map((note) => {
@@ -709,7 +845,7 @@
   async function permanentlyDeleteTrashNotes(ids, { ask = true, expired = false } = {}) {
     const selected = notes.filter((note) => ids.includes(note.id) && isNoteTrashed(note));
     if (!selected.length) return;
-    if (ask && !window.confirm(`Permanently delete ${selected.length} note${selected.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    if (ask && !(await confirmAction(`Permanently delete ${selected.length} note${selected.length === 1 ? "" : "s"}? This cannot be undone.`, { title: "Delete forever", confirmLabel: "Delete forever", danger: true }))) return;
     const deletedAt = Date.now();
     cloudState.deletedNotes = cloudState.deletedNotes || {};
     for (const note of selected) cloudState.deletedNotes[note.id] = deletedAt;
@@ -917,13 +1053,13 @@
     clearTimeout(saveTimer);
     saveTimer = null;
     try {
-      const snapshot = notes.map((note) => ({ ...note }));
+      const snapshot = NoteDrafts.persistedNotes(notes).map((note) => ({ ...note }));
       const signature = JSON.stringify(snapshot);
       // Serialize writes so a pending older save cannot overwrite a newer edit/delete.
       const write = () => chrome.storage.local.set({ [STORAGE_KEY]: snapshot });
       saveQueue = saveQueue.catch(() => {}).then(write);
       await saveQueue;
-      if (signature === JSON.stringify(notes) && !saveTimer) {
+      if (signature === JSON.stringify(NoteDrafts.persistedNotes(notes)) && !saveTimer) {
         setSaveState("saved", "All changes saved");
       }
       if (!applyingFirebaseData && !skipFirebaseSyncSchedule) {
@@ -946,7 +1082,23 @@
     }
   }
 
+  function discardUntouchedDraft(id = activeId, { notify = true, render = true } = {}) {
+    if (!id) return false;
+    const note = notes.find((item) => item.id === id);
+    if (!NoteDrafts.isUntouchedEmptyDraft(note)) return false;
+    notes = notes.filter((item) => item.id !== id);
+    selectedNoteIds.delete(id);
+    if (activeId === id) activeId = null;
+    if (render) {
+      renderList();
+      renderEditor();
+    }
+    if (notify) showToast("Empty note discarded");
+    return true;
+  }
+
   function selectNote(id) {
+    if (activeId && activeId !== id) discardUntouchedDraft(activeId, { notify: true, render: false });
     flushSave();
     activeId = id;
     renderList();
@@ -955,9 +1107,10 @@
 
   function createNote() {
     flushSave();
+    if (activeId) discardUntouchedDraft(activeId, { notify: true, render: false });
     const now = Date.now();
     const note = {
-      id: makeId(), title: "", body: "", pinned: false,
+      id: makeId(), title: "", body: "", pinned: false, _emptyDraft: true,
       tint: Math.floor(Math.random() * 7),
       texture: Math.floor(Math.random() * 5),
       createdAt: now, updatedAt: now
@@ -967,7 +1120,7 @@
     els.search.value = "";
     renderList();
     renderEditor({ focusTitle: settings.focusNewNote });
-    scheduleSave();
+    // Keep an untouched draft transient. It is persisted only after the user writes.
     if (window.SIDENOTE_ANDROID && !firebaseSession?.uid) {
       guestNoteCreatedThisSession = true;
       maybeShowGuestBackupReminder();
@@ -979,9 +1132,10 @@
     if (!note) return;
     note[field] = value;
     note.updatedAt = Date.now();
+    NoteDrafts.markWritten(note, value);
     renderList();
     els.editorInfo.title = metadataText(note);
-    scheduleSave();
+    if (!NoteDrafts.isUntouchedEmptyDraft(note)) scheduleSave();
   }
 
   async function deleteCurrentNote() {
@@ -1906,6 +2060,7 @@
     els.compactCardsToggle.checked = settings.compactCards;
     els.focusNewNoteToggle.checked = settings.focusNewNote;
     els.sortSelect.value = settings.sortMode;
+    updateNotesControlMenus();
   }
 
   async function saveSettings() {
@@ -2090,7 +2245,7 @@
       app: "SideNote",
       updatedAt: Date.now(),
       deviceId: cloudState.deviceId || (cloudState.deviceId = makeId()),
-      notes: notes.map((note) => ({ ...note })),
+      notes: NoteDrafts.persistedNotes(notes).map((note) => ({ ...note })),
       settings: { ...settings },
       layout: { notesHeight: Number.isFinite(height) ? height : Math.round(currentNotesHeight()) },
       deletedNotes: { ...(cloudState.deletedNotes || {}) },
@@ -2206,7 +2361,7 @@
       if (expectedLocalRevision !== null && firebaseLocalRevision !== expectedLocalRevision) {
         // The user typed while storage was being updated. Preserve that newer
         // local working copy and let the next sync merge it instead of replacing it.
-        const latestNotes = notes.map((note) => ({ ...note }));
+        const latestNotes = NoteDrafts.persistedNotes(notes).map((note) => ({ ...note }));
         const latestSettings = { ...settings };
         await chrome.storage.local.set({
           [STORAGE_KEY]: latestNotes,
@@ -2273,7 +2428,7 @@
         const localPayload = await makeLocalBackupPayload();
         cloudState.fileId = await writeRemoteBackup(token, "", localPayload);
       } else if (mode === "restore") {
-        if (!window.confirm("Restore the Google Drive backup? This replaces the notes and preferences on this device.")) return;
+        if (!(await confirmAction("Restore the Google Drive backup? This replaces the notes and preferences on this device.", { title: "Restore backup", confirmLabel: "Restore" }))) return;
         const remotePayload = await readRemoteBackup(token, remoteFile.id);
         await applyBackupPayload(remotePayload);
         cloudState.fileId = remoteFile.id;
@@ -2334,7 +2489,7 @@
   }
 
   async function disconnectGoogleDrive() {
-    if (!window.confirm("Disconnect Google Drive? Your remote backup will remain in your Google account, but SideNote will stop syncing on this device.")) return;
+    if (!(await confirmAction("Disconnect Google Drive? Your remote backup will remain in your Google account, but SideNote will stop syncing on this device.", { title: "Disconnect Google Drive", confirmLabel: "Disconnect", danger: true }))) return;
     clearTimeout(cloudSyncTimer);
     cloudState.connected = false;
     cloudState.autoSync = false;
@@ -2610,7 +2765,7 @@
 
   async function signOutFirebase() {
     if (!firebaseSession) return;
-    if (!window.confirm("Sign out of SideNote? Your notes will stay on this device and in your cloud account.")) return;
+    if (!(await confirmAction("Sign out of SideNote? Your notes will stay on this device and in your cloud account.", { title: "Sign out", confirmLabel: "Sign out" }))) return;
     clearTimeout(firebaseSyncTimer);
     await saveNow({ skipFirebaseSyncSchedule: true });
     await saveCurrentAccountSnapshot(firebaseSession.uid);
@@ -3184,14 +3339,70 @@
     const button = event.target.closest(".overlay-checklist-toggle");
     if (button) toggleChecklistItem(button);
   });
-  els.writingToolbarToggle.addEventListener("click", () => {
+  function toggleWritingToolbar() {
     const willOpen = !els.noteEditor.classList.contains("toolbar-open");
     els.noteEditor.classList.toggle("toolbar-open", willOpen);
     els.writingToolbarToggle.setAttribute("aria-expanded", String(willOpen));
     els.writingToolbarToggle.title = willOpen ? "Hide writing tools" : "Show writing tools";
     els.writingToolbarToggle.setAttribute("aria-label", willOpen ? "Hide writing tools" : "Show writing tools");
+  }
+  els.writingToolbarToggle.addEventListener("pointerdown", (event) => {
+    if (!window.SIDENOTE_ANDROID || !["touch", "pen"].includes(event.pointerType)) return;
+    // Keep the textarea as the focused element so Android does not dismiss its IME.
+    event.preventDefault();
+    toolbarTouchHandled = true;
+    toggleWritingToolbar();
+    window.setTimeout(() => { toolbarTouchHandled = false; }, 480);
+  });
+  els.writingToolbarToggle.addEventListener("click", () => {
+    if (toolbarTouchHandled) { toolbarTouchHandled = false; return; }
+    toggleWritingToolbar();
   });
   window.addEventListener("resize", () => renderBodyMirror());
+
+  function installRubberBand(target, scroller = target) {
+    if (!window.SIDENOTE_ANDROID || !target || !scroller) return;
+    let startY = 0;
+    let pulling = false;
+    target.classList.add("rubber-band-target");
+    target.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) { pulling = false; return; }
+      startY = event.touches[0].clientY;
+      pulling = true;
+    }, { passive: true });
+    target.addEventListener("touchmove", (event) => {
+      if (!pulling || event.touches.length !== 1) return;
+      const delta = event.touches[0].clientY - startY;
+      const atTop = scroller.scrollTop <= 0 && delta > 0;
+      const atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2 && delta < 0;
+      if (!atTop && !atBottom) {
+        target.style.removeProperty("--rubber-band-y");
+        target.classList.remove("rubber-band-active");
+        return;
+      }
+      const pull = Math.sign(delta) * Math.min(42, Math.pow(Math.abs(delta), 0.72) * 1.55);
+      target.style.setProperty("--rubber-band-y", `${pull.toFixed(1)}px`);
+      target.classList.add("rubber-band-active");
+    }, { passive: true });
+    const release = () => {
+      if (!pulling) return;
+      pulling = false;
+      target.classList.remove("rubber-band-active");
+      target.classList.add("rubber-band-releasing");
+      target.style.setProperty("--rubber-band-y", "0px");
+      window.setTimeout(() => target.classList.remove("rubber-band-releasing"), 520);
+    };
+    target.addEventListener("touchend", release, { passive: true });
+    target.addEventListener("touchcancel", release, { passive: true });
+  }
+
+  if (window.SIDENOTE_ANDROID) {
+    installRubberBand(els.notesList);
+    installRubberBand(els.settingsPanel.querySelector(".settings-content"));
+    installRubberBand(els.accountPopover.querySelector(".account-popover-content"));
+    installRubberBand(els.trashList);
+    installRubberBand(els.bodyWrap, els.body);
+  }
 
   function hideWritingToolbar() {
     if (!settings.autoHideToolbar) return;
@@ -3246,6 +3457,7 @@
     if (button.dataset.trashAction === "destroy") void permanentlyDeleteTrashNotes([id], { ask: true });
   });
   function returnToNotesList() {
+    if (activeId) discardUntouchedDraft(activeId, { notify: true, render: false });
     flushSave();
     activeId = null;
     renderList();
@@ -3259,11 +3471,11 @@
   if (els.mobileEmptyNewButton) els.mobileEmptyNewButton.addEventListener("click", createNote);
   els.delete.addEventListener("click", deleteCurrentNote);
   els.copy.addEventListener("click", copyCurrentNote);
-  if (!window.SIDENOTE_ANDROID && els.insertPage) els.insertPage.addEventListener("click", () => {
+  if (!window.SIDENOTE_ANDROID && els.insertPage) els.insertPage.addEventListener("click", async () => {
     const note = currentNote();
     if (!note) return;
     if (noteLinkedUrl(note)) {
-      if (settings.confirmUnlink && !window.confirm(`Unlink “${noteTitle(note)}” from this webpage?`)) return;
+      if (settings.confirmUnlink && !(await confirmAction(`Unlink “${noteTitle(note)}” from this webpage?`, { title: "Unlink page", confirmLabel: "Unlink", danger: true }))) return;
       const linkedUrl = noteLinkedUrl(note);
       const cleaned = removeLegacyPageLinkBlock(note.body, linkedUrl);
       if (cleaned.removed) note.body = cleaned.body;
@@ -3278,6 +3490,13 @@
       return;
     }
     void insertCurrentPage();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && (!els.sortMenu.classList.contains("hidden") || !els.viewMenu.classList.contains("hidden"))) {
+      event.preventDefault();
+      closeNotesControlMenus();
+    }
   });
 
   // Ctrl/Cmd+K focuses search while the panel is open.

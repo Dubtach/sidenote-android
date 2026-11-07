@@ -1,4 +1,4 @@
-# SideNote Android v1.5.4
+# SideNote Android v1.5.6
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
@@ -21,7 +21,7 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.4` (version code `154`)
+- Release: `1.5.6` (version code `156`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
@@ -35,3 +35,8 @@ See `RELEASE_NOTES_v1.5.4.md`. In Settings → Appearance, choose Two columns (d
 ## Latest Android build fix
 
 Version 1.5.5 includes the missing null-safe `safe(String)` helper that previously caused `cannot find symbol: method safe(String)` during Java compilation. See `RELEASE_NOTES_v1.5.5.md`.
+
+
+## v1.5.6 mobile interaction update
+
+See `RELEASE_NOTES_v1.5.6.md`. Untouched blank drafts are discarded with a toast and never synced. Android list controls use icon menus for sorting and card layout. Expanding writing tools preserves keyboard focus. Destructive confirmations use SideNote's own dialog, and scrollable surfaces have a damped rubber-band release effect with reduced-motion support.

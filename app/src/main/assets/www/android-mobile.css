@@ -1135,3 +1135,97 @@
 @media (prefers-reduced-motion: reduce) {
   .sidenote-android .app-shell.mobile-editor-active .editor-wrap { animation: none !important; }
 }
+
+
+/* v1.5.6 — icon-first list controls, custom confirmations, retained keyboard, elastic scroll */
+.sidenote-android .sort-select { display: none !important; }
+.sidenote-android .notes-menu-anchor { display: block; position: relative; flex: 0 0 auto; }
+.sidenote-android .notes-menu-button {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  border: 1px solid var(--line); border-radius: 12px; color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
+  box-shadow: 0 2px 7px rgba(42, 34, 76, .045); -webkit-tap-highlight-color: transparent;
+  transition: transform .16s cubic-bezier(.2,1.5,.35,1), background .18s ease, border-color .18s ease;
+}
+.sidenote-android .notes-menu-button:active { transform: scale(.92); }
+.sidenote-android .notes-menu-button[aria-expanded="true"] { color: var(--accent-dark); border-color: var(--accent); background: var(--accent-soft); }
+.sidenote-android .notes-menu-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sidenote-android .notes-control-menu {
+  position: absolute; z-index: 65; top: calc(100% + 7px); right: 0; width: 184px; max-width: calc(100vw - 28px);
+  display: flex; flex-direction: column; padding: 6px; border: 1px solid var(--line-strong);
+  border-radius: 15px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 16px 38px rgba(39, 30, 77, .19); transform-origin: top right;
+  animation: sidenote-control-menu-in .18s cubic-bezier(.2,1.35,.3,1) both;
+}
+.sidenote-android .notes-control-menu.hidden { display: none !important; }
+.sidenote-android .notes-control-menu button {
+  display: flex; align-items: center; min-height: 40px; width: 100%; padding: 0 11px; border: 0;
+  border-radius: 10px; background: transparent; color: var(--ink); text-align: left; font: 500 13px/1.2 "SideNote Inter", "SideNote Bengali", sans-serif;
+}
+.sidenote-android .notes-control-menu button::after { content: "✓"; margin-left: auto; color: var(--accent-dark); opacity: 0; font-weight: 800; }
+.sidenote-android .notes-control-menu button.is-active { background: var(--accent-soft); color: var(--accent-dark); }
+.sidenote-android .notes-control-menu button.is-active::after { opacity: 1; }
+.sidenote-android .notes-control-menu button:active { background: var(--accent-soft); }
+@keyframes sidenote-control-menu-in { from { opacity: 0; transform: translateY(-5px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Writing tools expand without moving focus away from the active editor field. */
+.sidenote-android .writing-toolbar {
+  display: flex !important; flex-wrap: nowrap; overflow: hidden; max-height: 0; min-height: 0;
+  opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(7px) scale(.99);
+  margin: 0; padding-top: 0; padding-bottom: 0; border-bottom-color: transparent;
+  transition: max-height .22s ease, opacity .16s ease, transform .22s cubic-bezier(.2,1.4,.3,1), padding .18s ease, margin .18s ease;
+}
+.sidenote-android .editor.toolbar-open .writing-toolbar {
+  max-height: 62px; min-height: 44px; opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translateY(0) scale(1); margin: 0 -3px; padding: 6px 2px 8px;
+  border-bottom-color: rgba(112,97,159,.12);
+}
+.sidenote-android .writing-toolbar-toggle { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* SideNote confirmation sheet; never use Android's browser-native confirm UI. */
+.sidenote-android .confirm-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center;
+  padding: 22px; background: rgba(29, 25, 47, .34); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; transition: opacity .18s ease;
+}
+.sidenote-android .confirm-dialog-backdrop.hidden { display: none !important; }
+.sidenote-android .confirm-dialog-backdrop.visible { opacity: 1; }
+.sidenote-android .confirm-dialog-backdrop.is-closing { opacity: 0; }
+.sidenote-android .confirm-dialog {
+  width: min(100%, 370px); padding: 22px 20px 16px; border: 1px solid var(--line-strong);
+  border-radius: 23px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 22px 66px rgba(28, 22, 59, .24); text-align: center;
+  transform: translateY(14px) scale(.965); opacity: .8;
+  transition: transform .26s cubic-bezier(.2,1.45,.32,1), opacity .18s ease;
+}
+.sidenote-android .confirm-dialog-backdrop.visible .confirm-dialog { transform: translateY(0) scale(1); opacity: 1; }
+.sidenote-android .confirm-dialog-backdrop.is-closing .confirm-dialog { transform: translateY(8px) scale(.975); opacity: 0; }
+.sidenote-android .confirm-dialog-mark { width: 42px; height: 42px; display: grid; place-items: center; margin: 0 auto 11px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-dark); }
+.sidenote-android .confirm-dialog-mark svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.sidenote-android .confirm-dialog h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.3; letter-spacing: -.25px; }
+.sidenote-android .confirm-dialog p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.sidenote-android .confirm-dialog-actions { display: flex; gap: 9px; margin-top: 20px; }
+.sidenote-android .confirm-dialog-actions button { flex: 1; min-height: 44px; border: 1px solid var(--line); border-radius: 13px; padding: 9px 12px; font: 600 13px/1.2 "SideNote Inter", "SideNote Bengali", sans-serif; transition: transform .15s cubic-bezier(.2,1.5,.35,1), background .15s ease; }
+.sidenote-android .confirm-dialog-actions button:active { transform: scale(.96); }
+.sidenote-android .confirm-dialog-cancel { color: var(--ink); background: var(--surface-raised, var(--surface)); }
+.sidenote-android .confirm-dialog-accept { border-color: var(--accent); color: white; background: var(--accent); }
+.sidenote-android .confirm-dialog-accept.danger { border-color: #cc5b70; background: #cc5b70; }
+
+/* Restrained rubber-band overscroll with a spring-back release. */
+.sidenote-android .rubber-band-target { --rubber-band-y: 0px; transform: translate3d(0, var(--rubber-band-y), 0); will-change: transform; }
+.sidenote-android .rubber-band-target.rubber-band-active { transition: none !important; }
+.sidenote-android .rubber-band-target.rubber-band-releasing { transition: transform .48s cubic-bezier(.18,1.55,.32,1) !important; }
+.sidenote-android .notes-list,
+.sidenote-android .settings-content,
+.sidenote-android .account-popover-content,
+.sidenote-android .trash-list { overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; }
+.sidenote-android .note-body-wrap { overscroll-behavior-y: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .sidenote-android .notes-menu-button,
+  .sidenote-android .notes-control-menu,
+  .sidenote-android .writing-toolbar,
+  .sidenote-android .confirm-dialog-backdrop,
+  .sidenote-android .confirm-dialog,
+  .sidenote-android .confirm-dialog-actions button { animation: none !important; transition: none !important; }
+  .sidenote-android .rubber-band-target { transform: none !important; }
+}
