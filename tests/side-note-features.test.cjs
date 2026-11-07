@@ -253,3 +253,61 @@ test('GitHub build validates Firebase Android JSON and the Web OAuth client befo
   const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
   assert.match(gitignore, /^app\/google-services\.json\s*$/m);
 });
+
+
+test('Android note layouts offer two columns by default plus single, compact, and list modes', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(js, /noteLayout: "two-column"/);
+  assert.match(js, /\["two-column", "single-column", "compact", "list"\]/);
+  assert.match(html, /id="noteLayoutSelect"/);
+  assert.match(html, /value="two-column"/);
+  assert.match(html, /value="single-column"/);
+  assert.match(html, /value="compact"/);
+  assert.match(html, /value="list"/);
+  assert.match(css, /notes-list\[data-layout="two-column"\][\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /notes-list\[data-layout="compact"\]/);
+  assert.match(css, /notes-list\[data-layout="list"\]/);
+});
+
+test('Android removes webpage-link controls and share intent filters without dropping note metadata compatibility', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  const manifest = fs.readFileSync(path.join(root, 'app/src/main/AndroidManifest.xml'), 'utf8');
+  const java = fs.readFileSync(path.join(root, 'app/src/main/java/com/dubtach/sidenote/MainActivity.java'), 'utf8');
+  assert.match(html, /id="insertPageButton"/); // retained for shared HTML/JS compatibility
+  assert.match(css, /#insertPageButton[\s\S]*display: none !important/);
+  assert.match(css, /label\[for="autoOpenLinkedToggle"\][\s\S]*display: none !important/);
+  assert.match(js, /if \(!window\.SIDENOTE_ANDROID && els\.insertPage\) els\.insertPage\.addEventListener/);
+  assert.doesNotMatch(manifest, /android\.intent\.action\.(SEND|VIEW)/);
+  assert.doesNotMatch(java, /handleIncomingIntent|setSharedPage|extractUrl\(/);
+  assert.match(js, /linkedUrl: safeText\(note\.linkedUrl\)/); // preserve cross-client data records
+});
+
+test('Android uses consistent dimmed overlays and outside-tap dismissal for editor and account/settings surfaces', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(html, /id="mobileOverlayBackdrop"/);
+  assert.match(js, /setMobileOverlay\("editor", true\)/);
+  assert.match(js, /setMobileOverlay\("account", true\)/);
+  assert.match(js, /mobileOverlayOwner === "editor"\) returnToNotesList\(\)/);
+  assert.match(js, /event\.target === els\.settingsBackdrop\) closeSettings\(\)/);
+  assert.match(css, /#mobileOverlayBackdrop[\s\S]*backdrop-filter: blur/);
+  assert.match(css, /mobile-editor-active \.editor-wrap[\s\S]*position: fixed/);
+  assert.match(css, /\.account-popover[\s\S]*position: fixed/);
+  assert.match(css, /\.settings-backdrop[\s\S]*position: fixed/);
+});
+
+test('Android removes redundant footer, simplifies account header, and keeps icon-only Trash action', () => {
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  assert.match(css, /\.account-trigger-copy small[\s\S]*display: none !important/);
+  assert.match(css, /\.account-avatar[\s\S]*display: none !important/);
+  assert.match(css, /\.app-footer[\s\S]*display: none !important/);
+  assert.match(css, /\.trash-open-button > span:not\(\.trash-count\)[\s\S]*display: none !important/);
+  assert.match(js, /guestBackupReminderShown/);
+  assert.match(js, /Saved on this device · Sign in to back up & sync/);
+});

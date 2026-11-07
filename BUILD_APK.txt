@@ -1,9 +1,10 @@
-SideNote Android v1.5.3
+SideNote Android v1.5.4
 
 Build without Android Studio using GitHub Actions.
 Required repository secrets:
 - SIDENOTE_GOOGLE_SERVICES_JSON_BASE64
 - SIDENOTE_GOOGLE_WEB_CLIENT_ID
 
-The workflow validates that the Web OAuth client ID matches the Web client entry in google-services.json before compiling the APK.
+The workflow validates the Android Firebase JSON and matching Web OAuth client before compiling the APK.
 See ANDROID_SETUP.md for OAuth SHA-1/SHA-256 registration and Google sign-in troubleshooting.
+See RELEASE_NOTES_v1.5.4.md for mobile layouts, overlay panels, and Android-only page-link removal.

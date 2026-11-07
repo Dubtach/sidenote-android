@@ -26,7 +26,8 @@
     compactCards: false,
     focusNewNote: true,
     sortMode: "newest",
-    profileAvatar: "initial"
+    profileAvatar: "initial",
+    noteLayout: "two-column"
   });
   const $ = (id) => document.getElementById(id);
 
@@ -46,6 +47,7 @@
     accountPopover: $("accountPopover"),
     accountPopoverClose: $("accountPopoverClose"),
     settingsBackdrop: $("settingsBackdrop"),
+    mobileOverlayBackdrop: $("mobileOverlayBackdrop"),
     settingsPanel: document.querySelector(".settings-panel"),
     settingsClose: $("settingsClose"),
     changeShortcutButton: $("changeShortcutButton"),
@@ -74,6 +76,7 @@
     autoSyncToggle: $("autoSyncToggle"),
     themeSelect: $("themeSelect"),
     editorFontSizeSelect: $("editorFontSizeSelect"),
+    noteLayoutSelect: $("noteLayoutSelect"),
     autoOpenLinkedToggle: $("autoOpenLinkedToggle"),
     confirmDeleteToggle: $("confirmDeleteToggle"),
     confirmUnlinkToggle: $("confirmUnlinkToggle"),
@@ -165,6 +168,10 @@
   let trashPanelOpen = false;
   let editorHistory = { noteId: null, undo: [], redo: [], lastSnapshot: null, lastAt: 0, lastField: "", lastInputType: "" };
   let historyApplying = false;
+  let mobileOverlayOwner = "";
+  let guestBackupReminderShown = false;
+  let guestNoteCreatedThisSession = false;
+  let firebaseInitializationComplete = false;
 
   // Use a light random paper texture on each panel open; note tint/texture is saved per note.
   els.appShell.dataset.appTexture = String(Math.floor(Math.random() * 4));
@@ -234,11 +241,30 @@
     }
   }
 
+  function setMobileOverlay(owner, visible) {
+    if (!window.SIDENOTE_ANDROID || !els.mobileOverlayBackdrop) return;
+    if (visible) {
+      mobileOverlayOwner = owner;
+      els.mobileOverlayBackdrop.classList.remove("hidden");
+      els.mobileOverlayBackdrop.setAttribute("aria-hidden", "false");
+      requestAnimationFrame(() => els.mobileOverlayBackdrop.classList.add("visible"));
+    } else if (!owner || mobileOverlayOwner === owner) {
+      mobileOverlayOwner = "";
+      els.mobileOverlayBackdrop.classList.remove("visible");
+      els.mobileOverlayBackdrop.setAttribute("aria-hidden", "true");
+      window.setTimeout(() => {
+        if (!mobileOverlayOwner) els.mobileOverlayBackdrop.classList.add("hidden");
+      }, 180);
+    }
+  }
+
   function setMobileView(view) {
     if (!window.SIDENOTE_ANDROID || !els.appShell) return;
     const showEditor = view === "editor";
     els.appShell.classList.toggle("mobile-editor-active", showEditor);
     els.appShell.classList.toggle("mobile-list-active", !showEditor);
+    if (showEditor) setMobileOverlay("editor", true);
+    else setMobileOverlay("editor", false);
   }
 
   function currentNote() {
@@ -257,6 +283,13 @@
     els.toast.classList.add("visible");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => els.toast.classList.remove("visible"), 1700);
+  }
+
+  function maybeShowGuestBackupReminder() {
+    if (!window.SIDENOTE_ANDROID || !firebaseInitializationComplete || !guestNoteCreatedThisSession ||
+        firebaseSession?.uid || guestBackupReminderShown) return;
+    guestBackupReminderShown = true;
+    window.setTimeout(() => showToast("Saved on this device · Sign in to back up & sync"), 420);
   }
 
   function metadataText(note) {
@@ -935,6 +968,10 @@
     renderList();
     renderEditor({ focusTitle: settings.focusNewNote });
     scheduleSave();
+    if (window.SIDENOTE_ANDROID && !firebaseSession?.uid) {
+      guestNoteCreatedThisSession = true;
+      maybeShowGuestBackupReminder();
+    }
   }
 
   function updateCurrentNote(field, value) {
@@ -1806,8 +1843,14 @@
     if (!els.settingsBackdrop.classList.contains("hidden")) closeSettings({ restoreFocus: false });
     els.accountPopover.classList.remove("hidden");
     els.accountButton.setAttribute("aria-expanded", "true");
+    if (window.SIDENOTE_ANDROID) {
+      els.accountPopover.setAttribute("aria-modal", "true");
+      setMobileOverlay("account", true);
+    }
     requestAnimationFrame(() => {
-      if (!firebaseSession?.uid) els.firebaseEmail.focus();
+      // Don't summon the Android keyboard just because the account sheet opened.
+      if (window.SIDENOTE_ANDROID) els.accountPopoverClose.focus();
+      else if (!firebaseSession?.uid) els.firebaseEmail.focus();
       else els.accountPopoverClose.focus();
     });
   }
@@ -1815,6 +1858,10 @@
   function closeAccountPopover({ restoreFocus = true } = {}) {
     els.accountPopover.classList.add("hidden");
     els.accountButton.setAttribute("aria-expanded", "false");
+    if (window.SIDENOTE_ANDROID) {
+      els.accountPopover.setAttribute("aria-modal", "false");
+      setMobileOverlay("account", false);
+    }
     if (restoreFocus) els.accountButton.focus();
   }
 
@@ -1850,6 +1897,8 @@
     document.documentElement.dataset.noteDensity = settings.compactCards ? "compact" : "comfortable";
     els.themeSelect.value = settings.theme;
     els.editorFontSizeSelect.value = settings.editorFontSize;
+    if (els.noteLayoutSelect) els.noteLayoutSelect.value = settings.noteLayout;
+    if (els.notesList) els.notesList.dataset.layout = settings.noteLayout;
     els.autoOpenLinkedToggle.checked = settings.autoOpenLinked;
     els.confirmDeleteToggle.checked = settings.confirmDelete;
     els.confirmUnlinkToggle.checked = settings.confirmUnlink;
@@ -2109,6 +2158,7 @@
     if (!["light", "dark", "lavender", "mint", "peach"].includes(normalized.theme)) normalized.theme = "light";
     if (!["small", "standard", "large"].includes(normalized.editorFontSize)) normalized.editorFontSize = "standard";
     if (!["newest", "oldest", "title-asc", "title-desc", "words-desc", "words-asc"].includes(normalized.sortMode)) normalized.sortMode = "newest";
+    if (!["two-column", "single-column", "compact", "list"].includes(normalized.noteLayout)) normalized.noteLayout = "two-column";
     normalized.autoOpenLinked = normalized.autoOpenLinked !== false;
     normalized.confirmDelete = normalized.confirmDelete !== false;
     normalized.confirmUnlink = normalized.confirmUnlink === true;
@@ -2828,6 +2878,8 @@
       console.error("SideNote: Firebase initialization failed", error);
     }
     renderFirebaseUI();
+    firebaseInitializationComplete = true;
+    maybeShowGuestBackupReminder();
   }
 
   els.profileAvatarChoices.addEventListener("click", (event) => {
@@ -3045,6 +3097,10 @@
   els.searchClose.addEventListener("click", () => closeSearch({ clear: true }));
   els.accountButton.addEventListener("click", openAccountPopover);
   els.accountPopoverClose.addEventListener("click", () => closeAccountPopover());
+  if (els.mobileOverlayBackdrop) els.mobileOverlayBackdrop.addEventListener("click", () => {
+    if (mobileOverlayOwner === "editor") returnToNotesList();
+    else if (mobileOverlayOwner === "account") closeAccountPopover({ restoreFocus: false });
+  });
   document.addEventListener("pointerdown", (event) => {
     if (els.accountPopover.classList.contains("hidden")) return;
     if (!els.accountPopover.contains(event.target) && !els.accountButton.contains(event.target)) {
@@ -3065,6 +3121,12 @@
   });
   els.editorFontSizeSelect.addEventListener("change", () => {
     settings.editorFontSize = els.editorFontSizeSelect.value;
+    applySettingsToUI();
+    void saveSettings();
+  });
+  if (els.noteLayoutSelect) els.noteLayoutSelect.addEventListener("change", () => {
+    settings.noteLayout = ["two-column", "single-column", "compact", "list"].includes(els.noteLayoutSelect.value)
+      ? els.noteLayoutSelect.value : "two-column";
     applySettingsToUI();
     void saveSettings();
   });
@@ -3197,7 +3259,7 @@
   if (els.mobileEmptyNewButton) els.mobileEmptyNewButton.addEventListener("click", createNote);
   els.delete.addEventListener("click", deleteCurrentNote);
   els.copy.addEventListener("click", copyCurrentNote);
-  els.insertPage.addEventListener("click", () => {
+  if (!window.SIDENOTE_ANDROID && els.insertPage) els.insertPage.addEventListener("click", () => {
     const note = currentNote();
     if (!note) return;
     if (noteLinkedUrl(note)) {
@@ -3260,9 +3322,6 @@
     });
   }
   if (window.SIDENOTE_ANDROID) {
-    window.addEventListener("sidenote-shared-page-updated", () => {
-      window.setTimeout(() => { void syncWithActivePage(); }, 250);
-    });
     window.addEventListener("online", () => {
       if (firebaseSession?.uid && firebaseSyncPrefs.autoSync) window.setTimeout(() => { void syncFirebaseNow({ manual: false }); }, 350);
     });
@@ -3270,7 +3329,7 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       purgeExpiredTrash();
-      void syncWithActivePage();
+      if (!window.SIDENOTE_ANDROID) void syncWithActivePage();
     }
   });
 

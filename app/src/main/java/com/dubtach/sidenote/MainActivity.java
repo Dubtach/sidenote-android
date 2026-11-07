@@ -13,7 +13,6 @@ import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.Build;
 import android.os.SystemClock;
-import android.util.Patterns;
 import android.view.View;
 import android.view.HapticFeedbackConstants;
 import android.view.Window;
@@ -58,7 +57,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.Locale;
-import java.util.regex.Matcher;
 
 public class MainActivity extends Activity {
     private static final String ASSET_HOST = "appassets.androidplatform.net";
@@ -67,8 +65,6 @@ public class MainActivity extends Activity {
     private CredentialManager credentialManager;
     private FirebaseAuth firebaseAuth;
     private String firebaseInitError = "";
-    private JSONObject sharedPage;
-    private boolean pageLoaded = false;
     private OnBackInvokedCallback systemBackCallback;
     private long lastBackPressedAtMs = 0L;
     private boolean backCheckPending = false;
@@ -83,7 +79,6 @@ public class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                     OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback);
         }
-        handleIncomingIntent(getIntent(), false);
         credentialManager = CredentialManager.create(this);
         assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -120,11 +115,6 @@ public class MainActivity extends Activity {
                 return true;
             }
 
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                pageLoaded = true;
-                if (sharedPage != null) dispatchSharedPageUpdated();
-            }
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -180,87 +170,6 @@ public class MainActivity extends Activity {
             controller.setAppearanceLightStatusBars(!dark);
             controller.setAppearanceLightNavigationBars(!dark);
         });
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleIncomingIntent(intent, true);
-    }
-
-    private void handleIncomingIntent(Intent intent, boolean notifyWeb) {
-        if (intent == null) return;
-        String action = intent.getAction();
-        String title = "";
-        String text = "";
-        Uri data = intent.getData();
-
-        if (Intent.ACTION_VIEW.equals(action) && data != null) {
-            String scheme = data.getScheme();
-            if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                String url = data.toString();
-                String subject = intent.getStringExtra(Intent.EXTRA_TITLE);
-                title = subject == null || subject.trim().isEmpty() ? safeHost(url) : subject.trim();
-                setSharedPage(title, url);
-            }
-        } else if (Intent.ACTION_SEND.equals(action)) {
-            title = safe(intent.getStringExtra(Intent.EXTRA_SUBJECT));
-            text = safe(intent.getStringExtra(Intent.EXTRA_TEXT));
-            String url = extractUrl(text);
-            if (url.isEmpty()) url = extractUrl(title);
-            if (!url.isEmpty()) {
-                String bodyTitle = text.replace(url, "").replaceAll("(?m)^\\s*$", "").trim();
-                if (title.isEmpty()) title = bodyTitle;
-                if (title.isEmpty()) title = bodyTitle.isEmpty() ? safeHost(url) : bodyTitle;
-                setSharedPage(title, url);
-            }
-        }
-        if (notifyWeb && pageLoaded && sharedPage != null) dispatchSharedPageUpdated();
-    }
-
-    private void setSharedPage(String title, String rawUrl) {
-        String url = rawUrl.trim().replaceAll("[),.;!?]+$", "");
-        if (!url.matches("(?i)^https?://.*")) url = "https://" + url;
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) || uri.getHost() == null) return;
-        String cleanTitle = safe(title).replace(url, "").trim();
-        if (cleanTitle.isEmpty() || cleanTitle.equals(url)) cleanTitle = safeHost(url);
-        sharedPage = new JSONObject();
-        try {
-            sharedPage.put("title", cleanTitle);
-            sharedPage.put("url", url);
-        } catch (JSONException ignored) {}
-    }
-
-    private String extractUrl(String text) {
-        if (text == null || text.trim().isEmpty()) return "";
-        Matcher matcher = Patterns.WEB_URL.matcher(text);
-        while (matcher.find()) {
-            String candidate = matcher.group();
-            if (candidate == null) continue;
-            candidate = candidate.replaceAll("[),.;!?]+$", "");
-            if (!candidate.matches("(?i)^https?://.*")) candidate = "https://" + candidate;
-            Uri uri = Uri.parse(candidate);
-            if (uri.getHost() != null && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) return candidate;
-        }
-        return "";
-    }
-
-    private String safeHost(String url) {
-        try {
-            String host = Uri.parse(url).getHost();
-            return host == null ? url : host.replaceFirst("^www\\.", "");
-        } catch (Exception ignored) { return url; }
-    }
-
-    private String safe(String value) { return value == null ? "" : value.trim(); }
-
-    private void dispatchSharedPageUpdated() {
-        if (webView == null || !pageLoaded) return;
-        webView.post(() -> webView.evaluateJavascript(
-                "window.dispatchEvent(new Event('sidenote-shared-page-updated'));", null));
     }
 
     private void openExternalUrl(String url) {
@@ -631,9 +540,6 @@ public class MainActivity extends Activity {
 
     public final class SideNoteBridge {
         @JavascriptInterface
-        public String getCurrentPageJson() { return sharedPage == null ? "{}" : sharedPage.toString(); }
-
-        @JavascriptInterface
         public void firebaseSignInEmail(String requestId, String email, String password) {
             runOnUiThread(() -> {
                 try { completeAuthTask(requestId, requireFirebaseAuth().signInWithEmailAndPassword(safe(email), password == null ? "" : password)); }
@@ -749,7 +655,5 @@ public class MainActivity extends Activity {
             });
         }
 
-        @JavascriptInterface
-        public void setWebContentReady() { pageLoaded = true; }
     }
 }

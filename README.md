@@ -1,13 +1,13 @@
-# SideNote Android v1.5.3
+# SideNote Android v1.5.4
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
 ## Included
 
-- Colorful two-column notes on wider phones/tablets and a readable single-column list on narrow phones.
+- User-selectable note layouts: two columns (default), single column, compact grid, and list.
 - Smart lists, alphabetic/numbered list continuation, checklists, undo/redo, note appearance controls, and Trash with 30-day recovery.
-- Long-press and drag multi-selection, bulk actions, note menus, linked-page metadata, and Android share intents.
-- Balanced phone sizing, adaptive keyboard viewport, smooth nested scrolling, haptic feedback, subtle spring feedback, compact one-row selection actions, and double-back-to-exit behavior.
+- Long-press and drag multi-selection, bulk actions, note menus, and Trash with 30-day recovery. The Android app intentionally has no page-link controls or share-sheet integration; link metadata from Chrome remains preserved in synced notes.
+- Compact, coordinated phone sizing; adaptive keyboard viewport; smooth nested scrolling; haptic/spring feedback; dimmed editor/account/settings sheets with outside-tap dismissal; and double-back-to-exit behavior.
 - Native Firebase Authentication for email/password and Credential Manager Sign in with Google button flow.
 - Local-first note editing with Firestore REST synchronization compatible with the SideNote Chrome extension.
 
@@ -21,7 +21,12 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.3` (version code `110`)
+- Release: `1.5.4` (version code `154`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
+
+
+## v1.5.4 mobile update
+
+See `RELEASE_NOTES_v1.5.4.md`. In Settings → Appearance, choose Two columns (default), Single column, Compact grid, or List. Page-link UI and Android share intents are removed from the phone app; Chrome page-link metadata remains compatible. Editor, account, and Settings open as dimmed bottom sheets and close on outside tap. The redundant footer is removed, the header keeps only the account name and sync indicator, and Trash is icon-only.

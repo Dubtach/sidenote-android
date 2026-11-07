@@ -40,16 +40,8 @@
   };
 
   const noopEvent = Object.freeze({ addListener() {}, removeListener() {}, hasListener() { return false; } });
-  const currentPage = () => {
-    try {
-      const raw = window.SideNoteAndroid?.getCurrentPageJson?.();
-      const page = raw ? JSON.parse(raw) : null;
-      if (page && /^https?:\/\//i.test(page.url || "")) return page;
-    } catch (error) { console.warn("SideNote: shared page context unavailable", error); }
-    return null;
-  };
-  window.SideNoteAndroidPage = currentPage;
-
+  // Page-linking is intentionally not part of the phone app. Existing linkedUrl
+  // note metadata is still preserved in Firebase for Chrome-client compatibility.
   window.chrome = window.chrome || {};
   window.chrome.storage = {
     local: { get: storageGet, set: storageSet, remove: storageRemove }
@@ -57,15 +49,8 @@
   window.chrome.tabs = {
     onActivated: noopEvent,
     onUpdated: noopEvent,
-    query: async () => {
-      const page = currentPage();
-      return page ? [{ id: 1, active: true, url: page.url, title: page.title || page.url }] : [];
-    },
-    get: async (id) => {
-      const page = currentPage();
-      if (page && (id === 1 || id == null)) return { id: 1, active: true, url: page.url, title: page.title || page.url };
-      throw new Error("No webpage has been shared with SideNote yet.");
-    },
+    query: async () => [],
+    get: async () => { throw new Error("Webpage linking is not available in the Android app."); },
     create: async ({ url } = {}) => {
       if (/^https?:\/\//i.test(url || "")) window.SideNoteAndroid?.openExternalUrl?.(url);
       else window.SideNoteAndroid?.showMessage?.("Keyboard shortcuts are managed by Android, not Chrome.");

@@ -10,6 +10,7 @@
 </head>
 <body>
   <div class="app-shell" id="appShell">
+    <div class="mobile-overlay-backdrop hidden" id="mobileOverlayBackdrop" aria-hidden="true"></div>
     <header class="topbar" id="topbar">
       <div class="topbar-heading">
         <button class="account-trigger" id="accountButton" type="button" title="Sign in to back up and sync notes" aria-label="Sign in to back up and sync notes" aria-haspopup="dialog" aria-controls="accountPopover" aria-expanded="false">
@@ -330,6 +331,14 @@ No pressure to make it perfect." aria-label="Note content" spellcheck="true"></t
                 <option value="small">Small</option>
                 <option value="standard">Standard</option>
                 <option value="large">Large</option>
+              </select>
+            </label>
+            <label class="settings-field" for="noteLayoutSelect"><span><strong>Note card layout</strong><small>Choose how your notes appear on this phone.</small></span>
+              <select id="noteLayoutSelect" class="settings-select">
+                <option value="two-column">Two columns</option>
+                <option value="single-column">Single column</option>
+                <option value="compact">Compact grid</option>
+                <option value="list">List</option>
               </select>
             </label>
             <label class="settings-check" for="compactCardsToggle"><span><strong>Compact note cards</strong><small>Show shorter previews to fit more notes.</small></span><input id="compactCardsToggle" type="checkbox"></label>
