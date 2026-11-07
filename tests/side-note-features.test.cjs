@@ -355,13 +355,16 @@ test('Android notes header has icon menus for sorting and switching card layouts
   assert.match(css, /\.sidenote-android \.notes-menu-button/);
 });
 
-test('opening writing tools on Android preserves the editor focus and keyboard', () => {
+test('opening writing tools on Android preserves editor focus and exposes a visible scrollable toolbar', () => {
   const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
-  assert.match(js, /writingToolbarToggle\.addEventListener\("pointerdown"/);
-  assert.match(js, /event\.preventDefault\(\);\s*toolbarTouchHandled = true;\s*toggleWritingToolbar\(\)/);
-  assert.match(js, /if \(toolbarTouchHandled\) \{ toolbarTouchHandled = false; return; \}/);
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(js, /writingToolbarToggle\.addEventListener\("pointerdown"[\s\S]*event\.preventDefault\(\)/);
+  assert.match(js, /writingToolbarToggle\.addEventListener\("click", \(\) => toggleWritingToolbar\(\)\)/);
+  assert.match(js, /writingToolbar\.classList\.toggle\("toolbar-visible", willOpen\)/);
+  assert.match(js, /function hideWritingToolbar\([\s\S]*writingToolbar\.classList\.remove\("toolbar-visible"\)/);
+  assert.match(css, /writing-toolbar\.toolbar-visible[\s\S]*max-height: 76px/);
+  assert.match(css, /writing-toolbar[\s\S]*overflow-x: auto/);
 });
-
 test('Android confirmations use the branded SideNote dialog instead of native confirm', () => {
   const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
   const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
@@ -384,4 +387,40 @@ test('Android scroll regions have a damped rubber-band pull and spring release',
   assert.match(js, /rubber-band-releasing/);
   assert.match(css, /rubber-band-target\.rubber-band-releasing \{ transition: transform \.48s cubic-bezier/);
   assert.match(css, /prefers-reduced-motion: reduce/);
+});
+
+
+test('Trash on Android uses the shared dimmed overlay and closes on outside tap', () => {
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(js, /setMobileOverlay\("trash", true\)/);
+  assert.match(js, /setMobileOverlay\("trash", false\)/);
+  assert.match(js, /mobileOverlayOwner === "trash"\) closeTrash/);
+  assert.match(css, /\.sidenote-android \.trash-panel \{[\s\S]*z-index: 48/);
+  assert.match(css, /#mobileOverlayBackdrop \{[\s\S]*backdrop-filter: blur/);
+  assert.match(css, /trash-panel:not\(\.hidden\)\.is-closing/);
+});
+
+test('Android editor uses top close action and bottom Delete/Pin actions', () => {
+  const html = fs.readFileSync(path.join(webDir, 'sidepanel.html'), 'utf8');
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const editorStart = html.indexOf('<section class="editor hidden"');
+  const closeIndex = html.indexOf('id="closeEditorButton"', editorStart);
+  const quietActionsIndex = html.indexOf('class="editor-quiet-actions"', editorStart);
+  const deleteIndex = html.indexOf('id="deleteButton"', editorStart);
+  assert.ok(closeIndex > editorStart);
+  assert.ok(quietActionsIndex > closeIndex);
+  assert.ok(deleteIndex > quietActionsIndex);
+  assert.match(js, /closeEditorButton/);
+});
+
+test('Android overlays have matching enter and exit motion and delayed hide', () => {
+  const js = fs.readFileSync(path.join(webDir, 'sidepanel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(webDir, 'android-mobile.css'), 'utf8');
+  assert.match(js, /function hideAnimatedPanel\([\s\S]*is-closing[\s\S]*element\.classList\.add\("hidden"\)/);
+  assert.match(js, /mobile-editor-closing/);
+  assert.match(css, /@keyframes sidenote-overlay-enter/);
+  assert.match(css, /@keyframes sidenote-overlay-exit/);
+  assert.match(css, /account-popover:not\(\.hidden\)\.is-closing/);
+  assert.match(css, /settings-backdrop:not\(\.hidden\)\.is-closing/);
 });

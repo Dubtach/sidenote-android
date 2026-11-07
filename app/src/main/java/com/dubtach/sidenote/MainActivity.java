@@ -504,8 +504,8 @@ public class MainActivity extends Activity {
                 + "if (overlay) { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 'handled'; }"
                 + "const bulk = document.querySelector('#bulkActionsBar:not(.hidden)');"
                 + "if (bulk) { bulk.querySelector('[data-bulk-action=\"cancel\"]')?.click(); return 'handled'; }"
-                + "const back = document.getElementById('mobileBackButton');"
-                + "if (document.querySelector('#appShell.mobile-editor-active') && back) { back.click(); return 'handled'; }"
+                + "const closeEditor = document.getElementById('closeEditorButton') || document.getElementById('mobileBackButton');"
+                + "if (document.querySelector('#appShell.mobile-editor-active') && closeEditor) { closeEditor.click(); return 'handled'; }"
                 + "return 'exit'; })()";
         webView.evaluateJavascript(backScript, value -> {
             backCheckPending = false;

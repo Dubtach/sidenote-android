@@ -1229,3 +1229,104 @@
   .sidenote-android .confirm-dialog-actions button { animation: none !important; transition: none !important; }
   .sidenote-android .rubber-band-target { transform: none !important; }
 }
+
+
+/* v1.5.7 — unified Trash sheet, reliable writing tools, editor actions, and closing motion */
+.sidenote-android .trash-panel {
+  position: fixed; z-index: 48; inset: auto 12px max(12px, env(safe-area-inset-bottom)) 12px;
+  width: auto; height: auto; max-height: min(84dvh, 760px); min-height: min(260px, 45dvh);
+  padding: max(14px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+  border: 1px solid rgba(214,207,237,.9); border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(28,22,52,.28);
+  transform-origin: center bottom;
+  animation: sidenote-overlay-enter .28s cubic-bezier(.18,1.25,.32,1) both;
+}
+.sidenote-android .trash-panel.is-closing { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .trash-panel.is-opening { animation: sidenote-overlay-enter .28s cubic-bezier(.18,1.25,.32,1) both; }
+.sidenote-android .trash-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sidenote-android .trash-panel-header { min-height: 58px; padding: 2px 0 10px; }
+.sidenote-android .trash-heading-copy h2 { font-size: 20px; }
+.sidenote-android .trash-heading-copy p { font-size: 11.5px; }
+
+/* Keep the Trash panel, Account sheet, and editor above the shared dim/blur layer. */
+.sidenote-android .account-popover { z-index: 48; }
+.sidenote-android .account-popover.is-closing { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .account-popover.is-opening { animation: sidenote-overlay-enter .28s cubic-bezier(.18,1.25,.32,1) both; }
+.sidenote-android .settings-backdrop { transition: opacity .22s ease, backdrop-filter .22s ease; }
+.sidenote-android .settings-backdrop.is-closing { opacity: 0; pointer-events: none; }
+.sidenote-android .settings-backdrop.is-closing .settings-panel { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .settings-backdrop.is-opening .settings-panel { animation: sidenote-overlay-enter .28s cubic-bezier(.18,1.25,.32,1) both; }
+.sidenote-android #mobileOverlayBackdrop { z-index: 42; }
+
+/* Editor closes with the same smooth sheet motion as Account and Settings. */
+.sidenote-android .app-shell.mobile-editor-closing .editor-wrap {
+  display: flex !important; position: fixed; z-index: 48;
+  top: max(72px, calc(env(safe-area-inset-top) + 66px)); right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom)); left: 12px;
+  width: auto; height: auto; max-height: none; min-height: 0;
+  margin: 0; border-radius: 22px; overflow: hidden;
+  animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both;
+}
+.sidenote-android .app-shell.mobile-editor-closing .editor.hidden { display: flex !important; }
+.sidenote-android .app-shell.mobile-editor-closing .list-editor-splitter { display: none !important; }
+.sidenote-android .app-shell.mobile-editor-closing .notes-section { display: flex !important; }
+
+/* On phones use the X close control; the bottom row owns note actions. */
+.sidenote-android .mobile-back-button { display: none !important; }
+.sidenote-android .editor-top-actions { margin-left: auto; }
+.sidenote-android .editor-top-actions .close-editor-button { display: inline-grid !important; width: 40px; height: 40px; border-radius: 13px; }
+.sidenote-android .editor-quiet-actions { display: flex; align-items: center; gap: 5px; }
+.sidenote-android .editor-quiet-actions .delete-button,
+.sidenote-android .editor-quiet-actions .pin-button { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; }
+.sidenote-android .editor-quiet-actions .delete-button { color: #a65c67; }
+.sidenote-android .editor-quiet-actions .delete-button:hover { color: #b7475c; background: rgba(221,93,115,.12); }
+.sidenote-android .editor-quiet-actions .delete-button svg { width: 17px; height: 17px; }
+.sidenote-android .editor-quiet-actions .pin-button svg { width: 18px; height: 18px; }
+
+/* Writing tools: explicit visible class, horizontal scroll, and adequate row height. */
+.sidenote-android .writing-toolbar {
+  display: flex !important; flex: 0 0 auto; flex-wrap: nowrap; align-items: center;
+  width: 100%; min-height: 0; max-height: 0;
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; opacity: 0; visibility: hidden; pointer-events: none;
+  margin: 0; padding: 0 2px; border-bottom-color: transparent;
+  transform: translateY(8px) scale(.985);
+  transition: max-height .24s ease, min-height .2s ease, opacity .18s ease,
+    transform .24s cubic-bezier(.18,1.25,.32,1), padding .2s ease, margin .2s ease;
+}
+.sidenote-android .writing-toolbar::-webkit-scrollbar { display: none; }
+.sidenote-android .editor.toolbar-open .writing-toolbar,
+.sidenote-android .writing-toolbar.toolbar-visible {
+  min-height: 48px; max-height: 76px; opacity: 1; visibility: visible; pointer-events: auto;
+  margin: 0 -3px; padding: 5px 2px 8px; transform: translateY(0) scale(1);
+  border-bottom-color: rgba(112,97,159,.12);
+}
+.sidenote-android .writing-toolbar .format-button { flex: 0 0 40px; min-width: 40px; width: 40px; height: 40px; }
+.sidenote-android .writing-toolbar .writing-toolbar-divider { flex: 0 0 1px; }
+.sidenote-android .writing-toolbar-toggle { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.sidenote-android .editor-footer-bottom { min-height: 48px; align-items: center; }
+
+/* Entry and exit are symmetrical. Overshoot is subtle and respects reduced motion. */
+@keyframes sidenote-overlay-enter {
+  0% { opacity: .72; transform: translateY(22px) scale(.975); filter: blur(2px); }
+  68% { opacity: 1; transform: translateY(-3px) scale(1.008); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes sidenote-overlay-exit {
+  0% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(18px) scale(.98); filter: blur(1px); }
+}
+.sidenote-android .settings-backdrop.is-opening { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .sidenote-android .trash-panel, .sidenote-android .account-popover,
+  .sidenote-android .settings-backdrop, .sidenote-android .settings-panel,
+  .sidenote-android .app-shell.mobile-editor-closing .editor-wrap {
+    animation: none !important; transition: none !important; filter: none !important;
+  }
+}
+
+/* Closing selectors must win over the older open-animation rules above. */
+.sidenote-android .account-popover:not(.hidden).is-closing { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .settings-backdrop:not(.hidden).is-closing .settings-panel { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .trash-panel:not(.hidden).is-closing { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }
+.sidenote-android .app-shell.mobile-editor-closing .editor-wrap { animation: sidenote-overlay-exit .22s cubic-bezier(.4,0,.8,.3) both; }

@@ -1,4 +1,4 @@
-# SideNote Android v1.5.6
+# SideNote Android v1.5.7
 
 A phone-first Android app built from the SideNote editor and notes experience.
 
@@ -21,7 +21,7 @@ Start with `ANDROID_SETUP.md` for Firebase setup, OAuth fingerprints, sign-in tr
 
 - Package: `com.dubtach.sidenote`
 - Firebase project: `notebeedubtach`
-- Release: `1.5.6` (version code `156`)
+- Release: `1.5.7` (version code `157`)
 - Firestore layout: `users/{uid}/notes/{noteId}` and `users/{uid}/meta/main`
 
 The Android project does not include `google-services.json`; GitHub Actions injects it from repository secrets at build time. Never add service-account credentials or private keys to this repository.
@@ -40,3 +40,13 @@ Version 1.5.5 includes the missing null-safe `safe(String)` helper that previous
 ## v1.5.6 mobile interaction update
 
 See `RELEASE_NOTES_v1.5.6.md`. Untouched blank drafts are discarded with a toast and never synced. Android list controls use icon menus for sorting and card layout. Expanding writing tools preserves keyboard focus. Destructive confirmations use SideNote's own dialog, and scrollable surfaces have a damped rubber-band release effect with reduced-motion support.
+
+
+## Latest update — v1.5.7
+
+Trash is now a coordinated dimmed overlay; the writing toolbar visibility/touch behavior is stabilized; Delete is grouped with Pin at the bottom of the editor; Android editor header uses the X close control; and Editor, Account, Settings, and Trash have matched open/close animations. See `RELEASE_NOTES_v1.5.7.md`.
+
+
+## v1.5.7 overlay and editor polish
+
+Trash now behaves as a shared dimmed bottom-sheet overlay with outside-tap dismissal. The writing toolbar has a reliable visible state and horizontal scrolling on small screens. Delete now sits beside Pin in the editor bottom row, with an X close action in the header. Editor, Account, Settings, and Trash have coordinated entrance and exit motion. See `RELEASE_NOTES_v1.5.7.md`.

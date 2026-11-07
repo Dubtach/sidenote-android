@@ -184,6 +184,36 @@
   let guestBackupReminderShown = false;
   let guestNoteCreatedThisSession = false;
   let firebaseInitializationComplete = false;
+  const panelCloseTimers = new WeakMap();
+  let editorCloseTimer = null;
+
+  function showAnimatedPanel(element) {
+    if (!element) return;
+    const timer = panelCloseTimers.get(element);
+    if (timer) clearTimeout(timer);
+    panelCloseTimers.delete(element);
+    element.classList.remove("hidden", "is-closing");
+    // Restart the entry transition if the user reopens during an exit.
+    element.classList.remove("is-opening");
+    void element.offsetWidth;
+    element.classList.add("is-opening");
+    window.setTimeout(() => element.classList.remove("is-opening"), 320);
+  }
+
+  function hideAnimatedPanel(element, onHidden, duration = 230) {
+    if (!element || element.classList.contains("hidden")) { onHidden?.(); return; }
+    const oldTimer = panelCloseTimers.get(element);
+    if (oldTimer) clearTimeout(oldTimer);
+    element.classList.remove("is-opening");
+    element.classList.add("is-closing");
+    const timer = window.setTimeout(() => {
+      element.classList.add("hidden");
+      element.classList.remove("is-closing");
+      panelCloseTimers.delete(element);
+      onHidden?.();
+    }, duration);
+    panelCloseTimers.set(element, timer);
+  }
 
   // Use a light random paper texture on each panel open; note tint/texture is saved per note.
   els.appShell.dataset.appTexture = String(Math.floor(Math.random() * 4));
@@ -266,17 +296,36 @@
       els.mobileOverlayBackdrop.setAttribute("aria-hidden", "true");
       window.setTimeout(() => {
         if (!mobileOverlayOwner) els.mobileOverlayBackdrop.classList.add("hidden");
-      }, 180);
+      }, 230);
     }
   }
 
   function setMobileView(view) {
     if (!window.SIDENOTE_ANDROID || !els.appShell) return;
     const showEditor = view === "editor";
-    els.appShell.classList.toggle("mobile-editor-active", showEditor);
-    els.appShell.classList.toggle("mobile-list-active", !showEditor);
-    if (showEditor) setMobileOverlay("editor", true);
-    else setMobileOverlay("editor", false);
+    if (showEditor) {
+      if (editorCloseTimer) clearTimeout(editorCloseTimer);
+      editorCloseTimer = null;
+      els.appShell.classList.remove("mobile-editor-closing");
+      els.appShell.classList.add("mobile-editor-active");
+      els.appShell.classList.remove("mobile-list-active");
+      setMobileOverlay("editor", true);
+      return;
+    }
+    if (els.appShell.classList.contains("mobile-editor-active")) {
+      if (editorCloseTimer) clearTimeout(editorCloseTimer);
+      els.appShell.classList.add("mobile-editor-closing");
+      els.appShell.classList.add("mobile-list-active");
+      setMobileOverlay("editor", false);
+      editorCloseTimer = window.setTimeout(() => {
+        els.appShell.classList.remove("mobile-editor-active", "mobile-editor-closing");
+        editorCloseTimer = null;
+      }, 230);
+    } else {
+      els.appShell.classList.remove("mobile-editor-active", "mobile-editor-closing");
+      els.appShell.classList.add("mobile-list-active");
+      setMobileOverlay("editor", false);
+    }
   }
 
   function currentNote() {
@@ -814,18 +863,25 @@
   function openTrash() {
     closeNoteActionMenu();
     clearNoteSelection();
+    if (window.SIDENOTE_ANDROID) {
+      closeAccountPopover({ restoreFocus: false });
+      closeSettings({ restoreFocus: false });
+    }
     trashPanelOpen = true;
     renderTrashPanel();
-    els.trashPanel.classList.remove("hidden");
+    showAnimatedPanel(els.trashPanel);
     els.trashPanel.setAttribute("aria-hidden", "false");
+    if (window.SIDENOTE_ANDROID) setMobileOverlay("trash", true);
     if (window.SIDENOTE_ANDROID && document.activeElement?.blur) document.activeElement.blur();
   }
 
-  function closeTrash() {
+  function closeTrash({ restoreFocus = true } = {}) {
     trashPanelOpen = false;
-    els.trashPanel.classList.add("hidden");
     els.trashPanel.setAttribute("aria-hidden", "true");
-    els.trashButton.focus?.({ preventScroll: true });
+    if (window.SIDENOTE_ANDROID) setMobileOverlay("trash", false);
+    hideAnimatedPanel(els.trashPanel, () => {
+      if (restoreFocus) els.trashButton.focus?.({ preventScroll: true });
+    }, 230);
   }
 
   async function restoreTrashNote(id) {
@@ -987,6 +1043,8 @@
     els.emptyState.classList.toggle("hidden", hasNote);
     els.noteEditor.classList.toggle("hidden", !hasNote);
     els.noteEditor.classList.remove("toolbar-open");
+    els.writingToolbar.classList.remove("toolbar-visible");
+    els.writingToolbar.setAttribute("aria-hidden", "true");
     toggleNoteStylePanel(false);
     els.writingToolbarToggle.setAttribute("aria-expanded", "false");
     els.writingToolbarToggle.title = "Show writing tools";
@@ -1995,7 +2053,7 @@
       return;
     }
     if (!els.settingsBackdrop.classList.contains("hidden")) closeSettings({ restoreFocus: false });
-    els.accountPopover.classList.remove("hidden");
+    showAnimatedPanel(els.accountPopover);
     els.accountButton.setAttribute("aria-expanded", "true");
     if (window.SIDENOTE_ANDROID) {
       els.accountPopover.setAttribute("aria-modal", "true");
@@ -2010,26 +2068,29 @@
   }
 
   function closeAccountPopover({ restoreFocus = true } = {}) {
-    els.accountPopover.classList.add("hidden");
     els.accountButton.setAttribute("aria-expanded", "false");
     if (window.SIDENOTE_ANDROID) {
       els.accountPopover.setAttribute("aria-modal", "false");
       setMobileOverlay("account", false);
     }
-    if (restoreFocus) els.accountButton.focus();
+    hideAnimatedPanel(els.accountPopover, () => {
+      if (restoreFocus) els.accountButton.focus?.({ preventScroll: true });
+    }, 230);
   }
 
   function openSettings() {
     closeAccountPopover({ restoreFocus: false });
-    els.settingsBackdrop.classList.remove("hidden");
+    if (window.SIDENOTE_ANDROID) closeTrash({ restoreFocus: false });
+    showAnimatedPanel(els.settingsBackdrop);
     els.settingsButton.setAttribute("aria-expanded", "true");
     requestAnimationFrame(() => els.settingsPanel.focus());
   }
 
   function closeSettings({ restoreFocus = true } = {}) {
-    els.settingsBackdrop.classList.add("hidden");
     els.settingsButton.setAttribute("aria-expanded", "false");
-    if (restoreFocus) els.settingsButton.focus();
+    hideAnimatedPanel(els.settingsBackdrop, () => {
+      if (restoreFocus) els.settingsButton.focus?.({ preventScroll: true });
+    }, 230);
   }
 
   async function openShortcutSettings() {
@@ -3252,9 +3313,11 @@
   els.searchClose.addEventListener("click", () => closeSearch({ clear: true }));
   els.accountButton.addEventListener("click", openAccountPopover);
   els.accountPopoverClose.addEventListener("click", () => closeAccountPopover());
-  if (els.mobileOverlayBackdrop) els.mobileOverlayBackdrop.addEventListener("click", () => {
+  if (els.mobileOverlayBackdrop) els.mobileOverlayBackdrop.addEventListener("click", (event) => {
+    if (event.target !== els.mobileOverlayBackdrop) return;
     if (mobileOverlayOwner === "editor") returnToNotesList();
     else if (mobileOverlayOwner === "account") closeAccountPopover({ restoreFocus: false });
+    else if (mobileOverlayOwner === "trash") closeTrash({ restoreFocus: false });
   });
   document.addEventListener("pointerdown", (event) => {
     if (els.accountPopover.classList.contains("hidden")) return;
@@ -3342,22 +3405,30 @@
   function toggleWritingToolbar() {
     const willOpen = !els.noteEditor.classList.contains("toolbar-open");
     els.noteEditor.classList.toggle("toolbar-open", willOpen);
+    els.writingToolbar.classList.toggle("toolbar-visible", willOpen);
+    els.writingToolbar.setAttribute("aria-hidden", String(!willOpen));
     els.writingToolbarToggle.setAttribute("aria-expanded", String(willOpen));
     els.writingToolbarToggle.title = willOpen ? "Hide writing tools" : "Show writing tools";
     els.writingToolbarToggle.setAttribute("aria-label", willOpen ? "Hide writing tools" : "Show writing tools");
+    if (willOpen) {
+      // Keep the editor field focused; only the toolbar container is revealed.
+      const focusedField = document.activeElement === els.title ? els.title : (document.activeElement === els.body ? els.body : null);
+      if (focusedField) {
+        const start = focusedField.selectionStart;
+        const end = focusedField.selectionEnd;
+        requestAnimationFrame(() => {
+          if (document.activeElement !== focusedField) focusedField.focus({ preventScroll: true });
+          try { focusedField.setSelectionRange(start, end); } catch (_) {}
+        });
+      }
+    }
   }
   els.writingToolbarToggle.addEventListener("pointerdown", (event) => {
     if (!window.SIDENOTE_ANDROID || !["touch", "pen"].includes(event.pointerType)) return;
-    // Keep the textarea as the focused element so Android does not dismiss its IME.
+    // Prevent the button from stealing focus from the editor on touch devices.
     event.preventDefault();
-    toolbarTouchHandled = true;
-    toggleWritingToolbar();
-    window.setTimeout(() => { toolbarTouchHandled = false; }, 480);
   });
-  els.writingToolbarToggle.addEventListener("click", () => {
-    if (toolbarTouchHandled) { toolbarTouchHandled = false; return; }
-    toggleWritingToolbar();
-  });
+  els.writingToolbarToggle.addEventListener("click", () => toggleWritingToolbar());
   window.addEventListener("resize", () => renderBodyMirror());
 
   function installRubberBand(target, scroller = target) {
@@ -3407,6 +3478,8 @@
   function hideWritingToolbar() {
     if (!settings.autoHideToolbar) return;
     els.noteEditor.classList.remove("toolbar-open");
+    els.writingToolbar.classList.remove("toolbar-visible");
+    els.writingToolbar.setAttribute("aria-hidden", "true");
     toggleNoteStylePanel(false);
     els.writingToolbarToggle.setAttribute("aria-expanded", "false");
     els.writingToolbarToggle.title = "Show writing tools";
