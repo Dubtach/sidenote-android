@@ -30,3 +30,8 @@ The Android project does not include `google-services.json`; GitHub Actions inje
 ## v1.5.4 mobile update
 
 See `RELEASE_NOTES_v1.5.4.md`. In Settings → Appearance, choose Two columns (default), Single column, Compact grid, or List. Page-link UI and Android share intents are removed from the phone app; Chrome page-link metadata remains compatible. Editor, account, and Settings open as dimmed bottom sheets and close on outside tap. The redundant footer is removed, the header keeps only the account name and sync indicator, and Trash is icon-only.
+
+
+## Latest Android build fix
+
+Version 1.5.5 includes the missing null-safe `safe(String)` helper that previously caused `cannot find symbol: method safe(String)` during Java compilation. See `RELEASE_NOTES_v1.5.5.md`.

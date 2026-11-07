@@ -311,3 +311,11 @@ test('Android removes redundant footer, simplifies account header, and keeps ico
   assert.match(js, /guestBackupReminderShown/);
   assert.match(js, /Saved on this device · Sign in to back up & sync/);
 });
+
+
+test('MainActivity defines the null-safe string helper used by Firebase auth', () => {
+  const java = fs.readFileSync(path.join(root, 'app/src/main/java/com/dubtach/sidenote/MainActivity.java'), 'utf8');
+  assert.match(java, /private static String safe\(String value\)\s*\{\s*return value == null \? "" : value\.trim\(\);\s*\}/);
+  assert.match(java, /safe\(email\)/);
+  assert.match(java, /safe\(user\.getEmail\(\)\)/);
+});

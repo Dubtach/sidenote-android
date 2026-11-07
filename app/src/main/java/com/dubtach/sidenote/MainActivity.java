@@ -190,6 +190,11 @@ public class MainActivity extends Activity {
         runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_LONG).show());
     }
 
+    /** Returns a safe, non-null, trimmed string for optional Firebase fields and messages. */
+    private static String safe(String value) {
+        return value == null ? "" : value.trim();
+    }
+
     private FirebaseAuth requireFirebaseAuth() {
         if (firebaseAuth != null) return firebaseAuth;
         try {
